@@ -1,0 +1,31 @@
+// Tail the gateway's JSON log file and ship it to Loki.
+//
+// A file rather than the Docker socket: the gateway writes an identical JSON
+// copy of stdout to a shared volume (GUARDRAILS_LOG_FILE), which works the same
+// on Docker Desktop, Linux and Kubernetes, and needs no privileged mount.
+local.file_match "guardrails" {
+  path_targets = [{"__path__" = "/var/log/guardrails/*.log", "job" = "guardrails"}]
+}
+
+loki.source.file "guardrails" {
+  targets    = local.file_match.guardrails.targets
+  forward_to = [loki.process.guardrails.receiver]
+}
+
+loki.process "guardrails" {
+  stage.json {
+    expressions = { level = "level", event = "event", stage = "stage", action = "action" }
+  }
+  // Only bounded fields become labels; trace ids, request ids and findings
+  // stay in the line, where they are searchable without exploding the index.
+  stage.labels {
+    values = { level = "", event = "", stage = "", action = "" }
+  }
+  forward_to = [loki.write.local.receiver]
+}
+
+loki.write "local" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}

@@ -1,0 +1,109 @@
+{
+  "fetched_at": "2026-10-06T07:10:17.4470238Z",
+  "benchmarks": [
+    {
+      "name": "deepset",
+      "title": "deepset prompt-injections",
+      "source": "https://huggingface.co/datasets/deepset/prompt-injections",
+      "revision": "4f61ecb038e9c3fb77e21034b22511b523772cdd",
+      "license": "Apache-2.0",
+      "measures": "prompt injection detection, English and German",
+      "citation": "deepset (2023), prompt-injections dataset",
+      "cases": 116,
+      "positive": 60,
+      "file": "deepset.jsonl",
+      "stage": "inbound"
+    },
+    {
+      "name": "gandalf",
+      "title": "Lakera Gandalf ignore-instructions",
+      "source": "https://huggingface.co/datasets/Lakera/gandalf_ignore_instructions",
+      "revision": "04737b65e90a6794ec227012e4a255a7def6344b",
+      "license": "MIT",
+      "measures": "real attacks typed by players of the Gandalf prompt-injection game (attacks only)",
+      "citation": "Lakera (2023), gandalf_ignore_instructions",
+      "cases": 112,
+      "positive": 112,
+      "file": "gandalf.jsonl",
+      "stage": "inbound"
+    },
+    {
+      "name": "jailbreak_cls",
+      "title": "Jailbreak classification",
+      "source": "https://huggingface.co/datasets/jackhhao/jailbreak-classification",
+      "revision": "2f2ceeb39658696fd3f462403562b6eea5306287",
+      "license": "Apache-2.0",
+      "measures": "in-the-wild jailbreak templates (DAN and relatives) vs benign role prompts",
+      "citation": "jackhhao (2023), jailbreak-classification",
+      "cases": 262,
+      "positive": 139,
+      "file": "jailbreak_cls.jsonl",
+      "stage": "inbound"
+    },
+    {
+      "name": "jbb",
+      "title": "JailbreakBench behaviors",
+      "source": "https://huggingface.co/datasets/JailbreakBench/JBB-Behaviors",
+      "revision": "886acc352a31533ffbcf4ef22c744658688086fc",
+      "license": "MIT",
+      "measures": "100 harmful behaviours vs 100 topic-matched benign ones",
+      "citation": "Chao et al. (2024), JailbreakBench, NeurIPS Datasets \u0026 Benchmarks",
+      "cases": 200,
+      "positive": 100,
+      "file": "jbb.jsonl",
+      "stage": "inbound"
+    },
+    {
+      "name": "xstest",
+      "title": "XSTest v2",
+      "source": "https://huggingface.co/datasets/natolambert/xstest-v2-copy",
+      "revision": "b71afe2a6d10e5a6254ea8bcb006c48b095a15d5",
+      "license": "CC-BY-4.0",
+      "measures": "exaggerated safety: 250 safe prompts that look unsafe (\"how do I kill a Python process\") and 200 unsafe contrasts",
+      "citation": "Röttger et al. (2024), XSTest, NAACL",
+      "cases": 450,
+      "positive": 200,
+      "file": "xstest.jsonl",
+      "stage": "inbound"
+    },
+    {
+      "name": "notinject",
+      "title": "NotInject (InjecGuard)",
+      "source": "https://huggingface.co/datasets/leolee99/NotInject",
+      "revision": "847ae76cf8fea5ed325429e569ae8cfef022d2e0",
+      "license": "MIT",
+      "measures": "over-defence: benign prompts deliberately containing injection trigger words (benign only)",
+      "citation": "Li \u0026 Liu (2024), InjecGuard: Benchmarking and Mitigating Over-defense in Prompt Injection Guardrail Models",
+      "cases": 339,
+      "positive": 0,
+      "file": "notinject.jsonl",
+      "stage": "inbound"
+    },
+    {
+      "name": "toxicchat",
+      "title": "ToxicChat 0124",
+      "source": "https://huggingface.co/datasets/lmsys/toxic-chat",
+      "revision": "29df8e4dba60e1f4af4b4075c0705c5b313548a8",
+      "license": "CC-BY-NC-4.0 (research use; fetched, never redistributed)",
+      "measures": "real user prompts to a public chatbot: toxicity and jailbreaking, at their natural base rate",
+      "citation": "Lin et al. (2023), ToxicChat, EMNLP Findings",
+      "cases": 5083,
+      "positive": 362,
+      "file": "toxicchat.jsonl",
+      "stage": "inbound"
+    },
+    {
+      "name": "injecagent",
+      "title": "InjecAgent (indirect injection in tool results)",
+      "source": "https://github.com/uiuc-kang-lab/InjecAgent",
+      "revision": "f19c9f2c79a41046eb13c03c51a24c567a8ffa07",
+      "license": "MIT",
+      "measures": "attacker instructions embedded in tool responses (reviews, emails, notes) vs the same responses with benign content",
+      "citation": "Zhan et al. (2024), InjecAgent, ACL Findings",
+      "cases": 2312,
+      "positive": 2108,
+      "file": "injecagent.jsonl",
+      "stage": "tool_result"
+    }
+  ]
+}

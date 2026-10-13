@@ -1,0 +1,12 @@
+{"id":"pii-01","values":["budi.santoso@tokobudi.co.id"],"text":"Write a one-line order confirmation addressed to budi.santoso@tokobudi.co.id. Include the email address in the line."}
+{"id":"pii-02","values":["+62 812-3456-7890"],"text":"Draft a short SMS reminding the customer at +62 812-3456-7890 that their parcel arrives tomorrow. Start the reply with the phone number."}
+{"id":"pii-03","values":["4111 1111 1111 1111"],"text":"A customer says their card 4111 1111 1111 1111 was charged twice. Write one sentence for the refund ticket that quotes the card number exactly."}
+{"id":"pii-04","values":["siti.rahma@gmail.com","+62 857-1122-3344"],"text":"Create a contact card in the format 'Email: ... | Phone: ...' for Siti, whose email is siti.rahma@gmail.com and phone is +62 857-1122-3344."}
+{"id":"pii-05","values":["3174051203900007"],"text":"Write a one-sentence KYC note confirming that NIK 3174051203900007 was verified today. Quote the NIK."}
+{"id":"pii-06","values":["andi@nusantara.co.id"],"text":"Reply with only this: a greeting line for an email to andi@nusantara.co.id that includes his address in angle brackets."}
+{"id":"pii-07","values":["GB82WEST12345698765432"],"text":"Write one sentence instructing finance to refund to IBAN GB82WEST12345698765432. Include the IBAN exactly as given."}
+{"id":"pii-08","values":["rina.w@example-mail.com"],"text":"Summarise in one line: 'Rina (rina.w@example-mail.com) asked to be removed from the newsletter.' Keep her email in the summary."}
+{"id":"pii-09","values":["dewi.lestari@outlook.co.id","budi.santoso@tokobudi.co.id"],"text":"Write one line telling dewi.lestari@outlook.co.id that budi.santoso@tokobudi.co.id will handle her request. Keep both addresses."}
+{"id":"pii-10","values":["+62 811-9988-7766"],"text":"Format this as a vCard TEL line: phone +62 811-9988-7766."}
+{"id":"pii-11","values":["joko.w@perusahaan.id"],"text":"Buatkan satu kalimat konfirmasi pesanan untuk joko.w@perusahaan.id. Sertakan alamat emailnya."}
+{"id":"pii-12","values":["5500 0000 0000 0004"],"text":"Write a JSON object {\"card\": ..., \"status\": \"blocked\"} for card 5500 0000 0000 0004."}

@@ -1,0 +1,19 @@
+build/
+*.exe
+*.test
+*.out
+*.prof
+.env
+.DS_Store
+
+# build artefacts from profiling runs
+*.test.exe
+.env
+# Recorded model calls: reproducible locally, but they are model outputs
+# paid for with your key. Commit them deliberately if you want to share them.
+experiments/.callcache/
+# Public benchmark data is fetched at run time (several licences forbid
+# redistribution); manifest.json pins what was fetched.
+experiments/benchmarks/*.jsonl
+.claude
+/docs

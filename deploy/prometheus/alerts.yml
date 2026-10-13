@@ -1,0 +1,65 @@
+groups:
+  - name: guardrails
+    rules:
+      # A guard that errors is coverage silently lost. Fail-open guards keep
+      # traffic flowing, which is exactly why this has to page someone.
+      - alert: GuardrailErrors
+        expr: sum by (guard, kind) (rate(guardrails_guard_errors_total[5m])) > 0
+        for: 2m
+        labels: { severity: warning }
+        annotations:
+          summary: "Guard {{ $labels.guard }} is failing ({{ $labels.kind }})"
+          description: "Detection coverage is reduced while this fires. Check guardrails logs for 'guardrail failed'."
+
+      - alert: DegradedDecisions
+        expr: sum(rate(guardrails_degraded_decisions_total[5m])) / clamp_min(sum(rate(guardrails_requests_total[5m])), 1e-9) > 0.01
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: "More than 1% of decisions were made with a guard failed open"
+
+      - alert: InboundLatencyBudget
+        expr: histogram_quantile(0.99, sum by (le) (rate(guardrails_stage_duration_seconds_bucket{stage="inbound"}[5m]))) > 0.05
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: "Inbound p99 is above the 50 ms stage budget"
+
+      - alert: BlockRateSpike
+        expr: |
+          sum(rate(guardrails_requests_total{stage="inbound",action="block"}[10m]))
+            / clamp_min(sum(rate(guardrails_requests_total{stage="inbound"}[10m])), 1e-9) > 0.30
+        for: 10m
+        labels: { severity: info }
+        annotations:
+          summary: "Over 30% of inbound traffic is blocked: an attack wave, or a false-positive regression"
+
+      - alert: UpstreamErrorRate
+        expr: |
+          sum by (provider) (rate(guardrails_upstream_requests_total{outcome="error"}[5m]))
+            / clamp_min(sum by (provider) (rate(guardrails_upstream_requests_total[5m])), 1e-9) > 0.10
+        for: 3m
+        labels: { severity: warning }
+        annotations:
+          summary: "{{ $labels.provider }} upstream error rate above 10%"
+
+      - alert: CircuitOpen
+        expr: max by (upstream) (guardrails_circuit_open) == 1
+        for: 1m
+        labels: { severity: warning }
+        annotations:
+          summary: "Circuit breaker open for {{ $labels.upstream }}; traffic is on fallback routes"
+
+      - alert: SemanticTierFailing
+        expr: sum by (classifier) (rate(guardrails_judge_calls_total{verdict="error"}[5m])) > 0
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: "Semantic classifier {{ $labels.classifier }} is erroring; the tier is failing open"
+
+      - alert: SpendRate
+        expr: sum(rate(guardrails_cost_usd_total[1h])) * 3600 * 24 > 50
+        for: 15m
+        labels: { severity: info }
+        annotations:
+          summary: "Projected daily model spend above $50"

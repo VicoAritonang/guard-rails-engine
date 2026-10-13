@@ -1,0 +1,179 @@
+# Strict policy: the enterprise posture.
+#
+# Three differences from balanced are the ones that matter, and each is a
+# deliberate trade of availability for containment:
+#
+#   1. Everything fails CLOSED. If a detector errors or times out, the request
+#      is refused rather than forwarded unscanned.
+#   2. Masked values are NOT restored on egress. The caller receives the
+#      placeholder and rehydrates on its own side of the trust boundary, so the
+#      sensitive value never transits the gateway's response path.
+#   3. Medium severity blocks. On balanced it only flags.
+#
+# Expect a higher false-positive rate here. That is the point: this profile is
+# for workloads where wrongly refusing a request is cheaper than wrongly
+# allowing one.
+version: "1.0.0-strict"
+name: strict
+description: >
+  Fail-closed everywhere, lower injection threshold, no PII restore on egress,
+  default-deny tooling. For regulated or high-sensitivity workloads.
+
+default_actions:
+  info: flag
+  low: flag
+  medium: block
+  high: block
+  critical: block
+
+default_timeout: 15ms
+default_fail_mode: closed
+
+stage_budget:
+  inbound: 50ms
+  runtime: 25ms
+  tool_result: 50ms
+  outbound: 50ms
+
+guards:
+  pii:
+    enabled: true
+    fail_mode: closed
+    actions: { info: redact, low: redact, medium: redact, high: redact, critical: redact }
+    params:
+      mask_mode: hash           # non-reversible: nothing to restore later
+      restore_outbound: false
+      detect_indonesian: true
+      scan_encoded_layers: true
+
+  secrets:
+    enabled: true
+    fail_mode: closed
+    actions: { medium: block, high: block, critical: block }
+
+  injection:
+    enabled: true
+    threshold: 0.40             # trades precision for recall
+    fail_mode: closed
+    actions: { low: flag, medium: block, high: block, critical: block }
+
+  topic:
+    enabled: true
+    threshold: 0.40
+    fail_mode: closed
+    actions: { low: flag, medium: block, high: block, critical: block }
+
+  quota:
+    enabled: true
+    fail_mode: closed
+    actions: { medium: block, high: block, critical: block }
+    params:
+      max_input_tokens: 100000
+      max_messages: 100
+      max_message_chars: 200000
+      max_cost_usd: 1.00
+
+  loop_breaker:
+    enabled: true
+    fail_mode: closed
+    actions: { medium: block, high: block, critical: block }
+    params:
+      max_steps: 12
+      max_repeats: 2
+      repeat_window: 5
+      detect_oscillation: true
+      max_wallclock_seconds: 120
+
+  tool_policy:
+    enabled: true
+    fail_mode: closed
+    actions: { medium: block, high: block, critical: block }
+    params:
+      # Default-deny. Replace this list with the tools your agent actually has.
+      allow: ["search", "fetch_order", "escalate_ticket"]
+      deny: ["bash", "shell", "exec", "eval", "write_file", "delete_file"]
+      block_private_urls: true
+      scan_arguments: true
+
+  # The tool-level control plane. Strict differs from balanced in one place
+  # that matters more than all the action maps: max_tier is T3, so this
+  # deployment will not move money, delete a row of record, grant access or
+  # deploy, whatever capabilities a session was granted. That is one setting
+  # instead of an audit of every grant for the life of the deployment.
+  tool_safety:
+    enabled: true
+    fail_mode: closed
+    actions: { info: flag, low: flag, medium: block, high: block, critical: block }
+    categories:
+      # A replay is the idempotency control working, not a violation: the
+      # caller retried and must be handed the first result rather than cause a
+      # second effect. Blocking it here would turn a network hiccup into a
+      # stuck agent.
+      tool.replay: { action: flag }
+      tool.amount_unconverted: { action: flag }
+    params:
+      max_tier: "T3"
+      approval_ttl_seconds: 300
+      # Replace with the destinations your agent is actually allowed to reach.
+      # An empty list means unrestricted, and `grctl policy lint` says so.
+      egress_allowlist: ["corp.example", "support.example.com"]
+      disabled_controls: []
+
+  tool_result:
+    enabled: true
+    threshold: 0.40
+    fail_mode: closed
+    actions: { info: flag, low: block, medium: block, high: block, critical: block }
+    categories:
+      # Truncate an oversized result rather than refusing it: a long document
+      # is usually just a long document.
+      tool_result.oversized: { action: redact }
+    params:
+      max_result_bytes: 100000
+      scan_bytes: 64000
+      scan_injection: true
+      escalate_injection: true
+
+  budget_breaker:
+    enabled: true
+    fail_mode: closed
+    actions: { medium: block, high: block, critical: block }
+    params:
+      max_trace_cost_usd: 2.00
+      max_trace_tokens: 400000
+
+  schema:
+    enabled: true
+    fail_mode: closed
+    actions: { medium: block, high: block, critical: block }
+    categories:
+      schema.repaired: { action: redact }
+    params:
+      repair: true
+
+  leak:
+    enabled: true
+    fail_mode: closed
+    actions: { low: block, medium: block, high: block, critical: block }
+    params:
+      system_prompt_ngram: 6      # shorter shingles catch looser paraphrase
+      system_prompt_threshold: 0.20
+      canary: true
+
+  grounding:
+    enabled: true
+    threshold: 0.35
+    fail_mode: open              # advisory by nature; see the guard's doc comment
+    actions: { low: flag, medium: flag, high: flag }
+
+  format:
+    enabled: true
+    fail_mode: closed
+    actions: { low: flag, medium: block, high: block, critical: block }
+    params:
+      max_output_chars: 100000
+      block_data_urls: true
+      allowed_link_hosts: ["docs.internal.example", "support.example.com"]
+
+  restore:
+    enabled: false               # masked values never come back

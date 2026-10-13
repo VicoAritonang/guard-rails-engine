@@ -1,0 +1,190 @@
+# Balanced policy: the built-in default, written out so operators can diff it.
+#
+# Every field here is optional. A policy file is layered over the built-in
+# defaults, so a real deployment usually overrides three or four values rather
+# than restating the whole document. Unknown fields are a load-time error, not
+# a silent no-op -- a typo must never quietly disable a guard.
+version: "1.0.0"
+name: balanced
+description: >
+  Mask PII rather than blocking it, block high-confidence injection and
+  credentials, and cap agent spend. Suitable for consumer-facing traffic where
+  availability matters more than absolute containment.
+
+# severity -> action, used by any guard that does not override it.
+default_actions:
+  info: flag
+  low: flag
+  medium: flag
+  high: block
+  critical: block
+
+default_timeout: 10ms
+default_fail_mode: open
+
+# Total wall-clock allowed per interception point. A guard that exceeds its own
+# timeout is resolved by fail_mode; a stage that exceeds this budget cancels
+# whatever is still running.
+stage_budget:
+  inbound: 50ms
+  runtime: 25ms
+  tool_result: 50ms
+  outbound: 50ms
+
+guards:
+  pii:
+    enabled: true
+    timeout: 15ms
+    fail_mode: open
+    actions: { info: redact, low: redact, medium: redact, high: redact, critical: redact }
+    categories:
+      # An IP address in a prompt is usually a log line being debugged.
+      pii.ip_address: { severity: info, action: flag }
+    params:
+      mask_mode: vault          # vault | label | hash
+      restore_outbound: true
+      detect_indonesian: true
+      scan_encoded_layers: true
+      max_decode_depth: 2
+
+  secrets:
+    enabled: true
+    timeout: 10ms
+    fail_mode: closed           # a leaked credential cannot be un-leaked
+    actions: { medium: redact, high: block, critical: block }
+
+  injection:
+    enabled: true
+    threshold: 0.60             # see docs/eval-report.md for the sweep behind this
+    timeout: 15ms
+    fail_mode: open
+    actions: { low: flag, medium: flag, high: block, critical: block }
+    params:
+      scan_encoded_layers: true
+      max_decode_depth: 2
+
+  topic:
+    enabled: true
+    threshold: 0.55
+    timeout: 10ms
+    fail_mode: open
+    actions: { medium: flag, high: block, critical: block }
+
+  quota:
+    enabled: true
+    timeout: 5ms
+    fail_mode: closed           # an unbounded prompt is an unbounded bill
+    actions: { medium: flag, high: block, critical: block }
+    params:
+      max_input_tokens: 200000
+      max_messages: 200
+      max_message_chars: 400000
+      max_cost_usd: 2.50
+
+  loop_breaker:
+    enabled: true
+    timeout: 5ms
+    fail_mode: closed
+    actions: { medium: flag, high: block, critical: block }
+    params:
+      max_steps: 25
+      max_repeats: 3
+      repeat_window: 6
+      detect_oscillation: true
+      max_wallclock_seconds: 300
+
+  tool_policy:
+    enabled: true
+    timeout: 5ms
+    fail_mode: closed
+    actions: { medium: flag, high: block, critical: block }
+    params:
+      # An empty allow list permits any tool not explicitly denied. Name your
+      # tools here to get default-deny; `grctl policy lint` warns when you do not.
+      allow: []
+      deny: []
+      block_private_urls: true
+      scan_arguments: true
+
+  budget_breaker:
+    enabled: true
+    timeout: 5ms
+    fail_mode: closed
+    actions: { medium: flag, high: block, critical: block }
+    params:
+      max_trace_cost_usd: 5.00
+      max_trace_tokens: 1000000
+
+  schema:
+    enabled: false              # opt-in: only meaningful when a caller declares a schema
+    timeout: 15ms
+    fail_mode: open
+    actions: { medium: flag, high: block, critical: block }
+    categories:
+      schema.repaired: { action: redact }
+    params:
+      repair: true
+
+  leak:
+    enabled: true
+    timeout: 15ms
+    fail_mode: closed
+    actions: { medium: flag, high: block, critical: block }
+    params:
+      system_prompt_ngram: 8
+      system_prompt_threshold: 0.35
+      canary: true
+
+  grounding:
+    enabled: false              # opt-in: requires retrieved context to score against
+    threshold: 0.30
+    timeout: 20ms
+    fail_mode: open
+    actions: { low: flag, medium: flag, high: flag }
+
+  format:
+    enabled: true
+    timeout: 10ms
+    fail_mode: open
+    actions: { low: flag, medium: redact, high: block, critical: block }
+    params:
+      max_output_chars: 200000
+      block_data_urls: true
+      # Populate this to block markdown images pointing anywhere else, which is
+      # the cheapest defence against conversation exfiltration via image URLs.
+      allowed_link_hosts: []
+
+  restore:
+    enabled: true
+    timeout: 5ms
+    fail_mode: open
+    actions: { info: redact }
+
+  # Tool-level safety. The balanced profile keeps the full T4 ladder -- a
+  # deployment that can move money should say so explicitly by leaving this
+  # alone, not by not knowing.
+  tool_safety:
+    enabled: true
+    fail_mode: closed
+    actions: { info: flag, low: flag, medium: flag, high: block, critical: block }
+    categories:
+      tool.replay: { action: flag }
+      tool.amount_unconverted: { action: flag }
+    params:
+      max_tier: "T4"
+      approval_ttl_seconds: 600
+      egress_allowlist: []
+      disabled_controls: []
+
+  tool_result:
+    enabled: true
+    threshold: 0.55
+    fail_mode: closed
+    actions: { info: flag, low: flag, medium: flag, high: block, critical: block }
+    categories:
+      tool_result.oversized: { action: redact }
+    params:
+      max_result_bytes: 200000
+      scan_bytes: 64000
+      scan_injection: true
+      escalate_injection: true

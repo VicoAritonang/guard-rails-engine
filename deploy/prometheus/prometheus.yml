@@ -1,0 +1,14 @@
+global:
+  scrape_interval: 5s
+  evaluation_interval: 15s
+
+# Alert rules are evaluated even without an Alertmanager: firing alerts are
+# visible at :9090/alerts and in Grafana. Wiring a receiver is a deployment
+# decision (Slack, PagerDuty); writing down what should page is not.
+rule_files:
+  - /etc/prometheus/alerts.yml
+
+scrape_configs:
+  - job_name: guardrails
+    static_configs:
+      - targets: ["guardrails:8080"]

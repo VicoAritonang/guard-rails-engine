@@ -1,0 +1,35 @@
+# Price overrides, applied on top of the built-in table.
+#
+# Point GUARDRAILS_PRICING at this file. Only the models you list are changed;
+# everything else keeps its built-in rate.
+#
+# You need this whenever the built-in defaults are not what you are actually
+# billed: prices changed, you buy through a reseller or cloud marketplace
+# (Azure OpenAI, Bedrock, Vertex), you have negotiated committed-use pricing, or
+# you are pointing OPENAI_BASE_URL at a self-hosted OpenAI-compatible model
+# whose real cost is your own GPU time.
+#
+# All rates are USD per 1,000,000 tokens.
+models:
+  # Example: a self-hosted model behind an OpenAI-compatible endpoint. Setting
+  # a real number here is what makes the cost dashboard and the budget breaker
+  # meaningful for local inference -- leaving it unpriced reports $0.00 and the
+  # budget guard can never trip.
+  llama-3.3-70b:
+    input: 0.35
+    output: 0.40
+    context_window: 131072
+
+  # Example: overriding a first-party rate after a price change.
+  # gpt-5:
+  #   input: 1.25
+  #   cache_read: 0.125
+  #   output: 10.00
+  #   context_window: 400000
+
+  # Example: Azure OpenAI, which is billed separately from api.openai.com.
+  # gpt-4o:
+  #   input: 2.50
+  #   cache_read: 1.25
+  #   output: 10.00
+  #   context_window: 128000

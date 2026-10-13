@@ -1,0 +1,175 @@
+{
+  "experiment": "pii",
+  "title": "PII redaction round-trip across models",
+  "question": "Does redact-and-restore keep personal data away from model providers, and what does it cost in task success on each model?",
+  "run_id": "20261004-075220",
+  "version": "dev",
+  "started_at": "2026-10-04T07:52:20.978786Z",
+  "finished_at": "2026-10-04T07:52:21.000866Z",
+  "config": {
+    "models": [
+      "gpt-5-nano",
+      "gpt-5-mini",
+      "gpt-4.1-nano",
+      "gpt-oss-20b",
+      "gpt-oss-120b",
+      "qwen3-27b"
+    ],
+    "policy": "balanced",
+    "policy_version": "1.0.0",
+    "workers": 6
+  },
+  "headline": [
+    {
+      "label": "PII exposed to providers, no gateway",
+      "value": "100%",
+      "hint": "14 values per model sent verbatim"
+    },
+    {
+      "label": "PII exposed with redaction",
+      "value": "0.0%",
+      "hint": "0/84 values"
+    },
+    {
+      "label": "Task success cost of redaction",
+      "value": "-8.3 pts",
+      "hint": "redacted minus raw, all models"
+    }
+  ],
+  "findings": [
+    "Redaction kept all 84 personal values in this set away from the providers.",
+    "Task success went from 94.4% with raw prompts to 86.1% with redact-and-restore across all models.",
+    "Placeholder preservation is a model property: models that copy the opaque token verbatim lose nothing to redaction; models that rewrite, drop or 'helpfully' replace it with an invented value lose the task. That makes it a model-selection criterion for any PII-sensitive workload."
+  ],
+  "tables": [
+    {
+      "title": "Redaction round-trip by model",
+      "columns": [
+        "Model",
+        "Tasks",
+        "Task success, raw",
+        "Task success, redacted",
+        "Placeholders preserved",
+        "Refusals, raw",
+        "Refusals, redacted",
+        "Values exposed to provider (redacted)",
+        "Errors"
+      ],
+      "rows": [
+        [
+          "gpt-5-nano",
+          "12",
+          "100.0%",
+          "66.7%",
+          "64.3%",
+          "0",
+          "0",
+          "0/14",
+          "0"
+        ],
+        [
+          "gpt-5-mini",
+          "12",
+          "100.0%",
+          "91.7%",
+          "92.9%",
+          "0",
+          "0",
+          "0/14",
+          "0"
+        ],
+        [
+          "gpt-4.1-nano",
+          "12",
+          "91.7%",
+          "75.0%",
+          "71.4%",
+          "0",
+          "0",
+          "0/14",
+          "0"
+        ],
+        [
+          "gpt-oss-20b",
+          "12",
+          "100.0%",
+          "91.7%",
+          "92.9%",
+          "0",
+          "0",
+          "0/14",
+          "0"
+        ],
+        [
+          "gpt-oss-120b",
+          "12",
+          "100.0%",
+          "100.0%",
+          "100.0%",
+          "0",
+          "0",
+          "0/14",
+          "0"
+        ],
+        [
+          "qwen3-27b",
+          "12",
+          "75.0%",
+          "91.7%",
+          "92.9%",
+          "0",
+          "0",
+          "0/14",
+          "0"
+        ]
+      ]
+    }
+  ],
+  "charts": [
+    {
+      "title": "Task success with and without redaction",
+      "format": "pct",
+      "series": [
+        "Raw prompt (PII sent to provider)",
+        "Redacted + restored"
+      ],
+      "categories": [
+        "gpt-5-nano",
+        "gpt-5-mini",
+        "gpt-4.1-nano",
+        "gpt-oss-20b",
+        "gpt-oss-120b",
+        "qwen3-27b"
+      ],
+      "values": [
+        [
+          1,
+          1,
+          0.9166666666666666,
+          1,
+          1,
+          0.75
+        ],
+        [
+          0.6666666666666666,
+          0.9166666666666666,
+          0.75,
+          0.9166666666666666,
+          1,
+          0.9166666666666666
+        ]
+      ],
+      "note": "A task succeeds when every personal value it needs appears correctly in the final answer the user receives."
+    }
+  ],
+  "notes": [
+    "Values are compared after removing spaces, hyphens and brackets, so a phone number reformatted by the model still counts as correct.",
+    "The system prompt tells the model what a placeholder is. Without that line preservation drops further; the instruction is part of a correct deployment.",
+    "Exposure is measured on the payload actually sent upstream after the inbound stage."
+  ],
+  "usage": {
+    "upstream_calls": 0,
+    "cache_replays": 144,
+    "cost_usd": 0
+  }
+}

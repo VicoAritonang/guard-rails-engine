@@ -1,0 +1,9 @@
+.env
+build/
+.git/
+docs/
+*.md
+!README.md
+experiments/runs/
+experiments/.callcache/
+experiments/index.html

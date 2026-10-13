@@ -1,0 +1,33 @@
+# MCP gateway: the upstream MCP servers the agent may reach, and how risky each
+# of their tools is. Point GUARDRAILS_MCP at this file.
+#
+# Grades here are the operator's review and override whatever the server claims
+# in its tool annotations. A tool with no grade gets default_grade, and its
+# annotations may only RAISE that (destructiveHint -> irreversible), never
+# lower it: readOnlyHint from an untrusted server is a claim, not a fact.
+servers:
+  - name: demo
+    url: ${GUARDRAILS_MCP_DEMO_URL:-http://localhost:8090/mcp}
+    trust: untrusted      # results are attacker-authorable: arms taint + trifecta
+    tools:
+      get_weather:      { reversibility: none, radius: external }
+      read_inbox:       { reversibility: none, radius: external, private: true }
+      convert_currency: { reversibility: none, radius: external }
+      fetch_url:        { reversibility: none, radius: external, egress: true, destination: url }
+      # The server says readOnlyHint=true. It moves money.
+      pay_invoice:
+        reversibility: irreversible
+        radius: critical
+        amount: amount
+        amount_limit_usd: 500
+
+# Built-in tools (simulated executors) exposed next to the upstream ones, so an
+# agent can be lured from an untrusted read into an irreversible send.
+builtin_tools: [get_customer, send_email, web_fetch, transfer_funds, calculator]
+
+# "*" grants every capability: tiers, taint, the trifecta and approvals decide.
+session_capabilities: ["*"]
+
+default_grade:
+  reversibility: compensable
+  radius: external

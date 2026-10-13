@@ -1,0 +1,155 @@
+{
+  "experiment": "resilience",
+  "title": "Resilience under provider failure: fallback chains and circuit breaking",
+  "question": "How much availability does a fallback chain buy during a provider outage, and what does the circuit breaker add on top?",
+  "run_id": "20261006-133405",
+  "version": "dev",
+  "started_at": "2026-10-06T13:34:05.5410071Z",
+  "finished_at": "2026-10-06T13:34:05.5469181Z",
+  "config": {
+    "policy": "balanced",
+    "policy_version": "1.0.0",
+    "quick": true,
+    "seed": 42,
+    "workers": 6
+  },
+  "headline": [
+    {
+      "label": "Availability, single provider",
+      "value": "62.5%",
+      "hint": "primary down for 20 s of 60 s"
+    },
+    {
+      "label": "Availability, fallback + breaker",
+      "value": "99.2%",
+      "hint": "p95 1184ms"
+    },
+    {
+      "label": "Dead-primary calls avoided by the breaker",
+      "value": "200 → 5",
+      "hint": "during the outage window"
+    }
+  ],
+  "findings": [
+    "A single provider serves 62.5% of traffic through a 20-second outage; a fallback chain serves 99.2%.",
+    "Fallback alone still sends every outage request to the dead primary first (200 calls), so each one pays the 2 s timeout: p95 is 3128ms. The circuit breaker stops trying after 3 failures and probes once per cooldown, cutting dead calls to 5 and p95 to 1184ms.",
+    "The breaker never refuses a request; it only reorders where the request is sent. Availability is the fallback chain's job, latency during an outage is the breaker's."
+  ],
+  "tables": [
+    {
+      "title": "Outcome by configuration",
+      "columns": [
+        "Configuration",
+        "Success rate",
+        "Success during outage",
+        "p50",
+        "p95",
+        "p99",
+        "Calls to the dead primary during outage",
+        "Served by backup"
+      ],
+      "rows": [
+        [
+          "Single provider",
+          "62.5%",
+          "0.0%",
+          "738ms",
+          "2000ms",
+          "2000ms",
+          "200",
+          "0"
+        ],
+        [
+          "Fallback chain",
+          "99.2%",
+          "97.5%",
+          "738ms",
+          "3128ms",
+          "3196ms",
+          "200",
+          "220"
+        ],
+        [
+          "Fallback + circuit breaker",
+          "99.2%",
+          "97.5%",
+          "710ms",
+          "1184ms",
+          "3095ms",
+          "5",
+          "222"
+        ]
+      ]
+    }
+  ],
+  "charts": [
+    {
+      "title": "Requests served successfully",
+      "format": "pct",
+      "series": [
+        "Whole run",
+        "During the outage"
+      ],
+      "categories": [
+        "Single provider",
+        "Fallback chain",
+        "Fallback + circuit breaker"
+      ],
+      "values": [
+        [
+          0.625,
+          0.9916666666666667,
+          0.9916666666666667
+        ],
+        [
+          0,
+          0.975,
+          0.975
+        ]
+      ]
+    },
+    {
+      "title": "Latency percentiles",
+      "format": "ms",
+      "series": [
+        "p50",
+        "p95",
+        "p99"
+      ],
+      "categories": [
+        "Single provider",
+        "Fallback chain",
+        "Fallback + circuit breaker"
+      ],
+      "values": [
+        [
+          738,
+          738,
+          710
+        ],
+        [
+          2000,
+          3128,
+          1184
+        ],
+        [
+          2000,
+          3196,
+          3095
+        ]
+      ],
+      "note": "Virtual-clock latency: a failed primary call costs its full 2 s timeout before the fallback fires.",
+      "lower_is_better": true
+    }
+  ],
+  "notes": [
+    "600 requests at one per 100ms (virtual clock); primary has 5% random 503s and is fully down from 20s to 40s; backup has 2% random 503s and is slower.",
+    "The router and circuit breaker are the production implementation; only the providers are simulated (seeded, reproducible).",
+    "Breaker: opens after 3 consecutive failures, half-opens after 5 s with a single probe."
+  ],
+  "usage": {
+    "upstream_calls": 0,
+    "cache_replays": 0,
+    "cost_usd": 0
+  }
+}

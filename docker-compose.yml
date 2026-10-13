@@ -1,0 +1,177 @@
+# Local stack: the gateway plus everything it is designed to emit into.
+#
+#   docker compose up -d --build           gateway + Prometheus + Grafana + Jaeger + Loki
+#   docker compose --profile load run --rm loadgen         drive mixed traffic
+#   docker compose --profile experiments run --rm experiments all
+#
+#   Live showcase     http://localhost:8080          (animation, walkthrough, experiments)
+#   Operator console  http://localhost:8080/console
+#   Grafana           http://localhost:3000   (dashboard "Guardrails Gateway")
+#   Prometheus        http://localhost:9090   (alerts at /alerts)
+#   Jaeger            http://localhost:16686
+#
+# A guardrail whose telemetry nobody has looked at is a guardrail nobody knows
+# is broken, so the observability stack is part of the default `up`.
+
+x-gateway-image: &gateway-image
+  build:
+    context: .
+    args:
+      VERSION: local
+  image: guardrails-engine:local
+
+services:
+  guardrails:
+    <<: *gateway-image
+    # Always rebuild on `up`: the showcase page is embedded in the binary, so a
+    # stale image means a stale page. Unchanged layers come from the cache.
+    pull_policy: build
+    # Credentials come from .env, which is gitignored. Values set in the real
+    # environment still win over that file.
+    env_file:
+      - path: .env
+        required: false
+    ports:
+      - "8080:8080"
+    environment:
+      # Must be identical across replicas: it keys the redaction vault.
+      GUARDRAILS_SECRET: ${GUARDRAILS_SECRET:-local-dev-secret-key-32chars}
+      GUARDRAILS_PROVIDER: ${GUARDRAILS_PROVIDER:-openai}
+      GUARDRAILS_DEFAULT_MODEL: ${GUARDRAILS_DEFAULT_MODEL:-gpt-5-mini}
+      GUARDRAILS_MODELS: /etc/guardrails/models.yaml
+      GUARDRAILS_PRICING: /etc/guardrails/pricing.yaml
+      GUARDRAILS_POLICY: /etc/guardrails/policies/balanced.yaml
+      GUARDRAILS_TENANT_METRICS: "true"
+      GUARDRAILS_DASHBOARD: "true"
+      GUARDRAILS_LOG_LEVEL: info
+      GUARDRAILS_LOG_FILE: /var/log/guardrails/guardrails.log
+      GUARDRAILS_AUDIT_LOG_ALLOWED: "true"
+      GUARDRAILS_OTLP_ENDPOINT: jaeger:4318
+      # MCP gateway in front of the deliberately hostile demo server, plus the
+      # gateway's own function-calling agent at /v1/agent/run.
+      GUARDRAILS_MCP: /etc/guardrails/mcp.yaml
+      GUARDRAILS_MCP_DEMO_URL: http://mcp-demo:8090/mcp
+      # The showcase renders experiment results from here and can start new
+      # runs. Runs spend real API quota; set GUARDRAILS_EXPERIMENTS_RUN=false
+      # to make the page read-only.
+      GUARDRAILS_EXPERIMENTS_DIR: /srv/experiments
+      GUARDRAILS_EXPERIMENTS_RUN: ${GUARDRAILS_EXPERIMENTS_RUN:-true}
+      GUARDRAILS_EVAL_CORPUS: /usr/share/guardrails/eval
+      # Efficiency
+      GUARDRAILS_CACHE_SIZE: "2000"
+      GUARDRAILS_SEMANTIC_CACHE: ${GUARDRAILS_SEMANTIC_CACHE:-false}
+      GUARDRAILS_SEMANTIC_CACHE_THRESHOLD: ${GUARDRAILS_SEMANTIC_CACHE_THRESHOLD:-0.95}
+      # Semantic tier: Prompt Guard on every request the rules allow, run in
+      # parallel with the upstream call so it adds no latency on clean traffic.
+      GUARDRAILS_JUDGE_MODE: ${GUARDRAILS_JUDGE_MODE:-always}
+      GUARDRAILS_JUDGE_CLASSIFIERS: ${GUARDRAILS_JUDGE_CLASSIFIERS:-prompt-guard-86m}
+      GUARDRAILS_JUDGE_PARALLEL: ${GUARDRAILS_JUDGE_PARALLEL:-true}
+      GUARDRAILS_JUDGE_TIMEOUT: 3s
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    volumes:
+      - gateway-logs:/var/log/guardrails
+      - ./experiments:/srv/experiments
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    depends_on:
+      - jaeger
+      - mcp-demo
+
+  # A deliberately hostile MCP server: poisoned and shadowing tool
+  # definitions, a rug pull, lying annotations, an injected inbox. It is only
+  # reachable from inside the compose network; agents see it through the
+  # gateway, which is the point.
+  mcp-demo:
+    <<: *gateway-image
+    entrypoint: ["/usr/local/bin/grctl", "mcp-demo", "--addr", ":8090", "--rug-pull-after", "3"]
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./deploy/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus-data:/prometheus
+    depends_on:
+      - guardrails
+
+  grafana:
+    image: grafana/grafana:12.1.1
+    ports:
+      - "3000:3000"
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/guardrails.json
+    volumes:
+      - ./deploy/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./deploy/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+      - loki
+      - jaeger
+
+  jaeger:
+    image: jaegertracing/jaeger:2.9.0
+    ports:
+      - "16686:16686"   # UI
+      - "4318:4318"     # OTLP/HTTP, for a gateway run outside compose
+
+  loki:
+    image: grafana/loki:3.5.3
+    command: -config.file=/etc/loki/local-config.yaml
+    ports:
+      - "3100:3100"
+
+  alloy:
+    image: grafana/alloy:v1.10.2
+    command: run /etc/alloy/config.alloy --storage.path=/var/lib/alloy/data
+    volumes:
+      - ./deploy/alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - gateway-logs:/var/log/guardrails:ro
+    depends_on:
+      - loki
+
+  # --- on-demand tools -------------------------------------------------------
+  loadgen:
+    <<: *gateway-image
+    profiles: ["load"]
+    entrypoint: ["/usr/local/bin/grctl", "loadgen", "--target", "http://guardrails:8080", "--datasets", "/work/experiments/datasets"]
+    command: ["--requests", "150", "--rps", "1"]
+    volumes:
+      - ./experiments/datasets:/work/experiments/datasets:ro
+    depends_on:
+      - guardrails
+
+  experiments:
+    <<: *gateway-image
+    profiles: ["experiments"]
+    working_dir: /work
+    entrypoint: ["/usr/local/bin/grctl", "experiment", "--catalog", "/etc/guardrails/models.yaml"]
+    command: ["all"]
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      GUARDRAILS_ENV_FILE: /nonexistent
+      GUARDRAILS_PRICING: /etc/guardrails/pricing.yaml
+    user: "0:0"   # writes run results into the bind-mounted experiments/ directory
+    volumes:
+      - ./experiments:/work/experiments
+      - ./testdata:/work/testdata:ro
+
+volumes:
+  gateway-logs:
+  prometheus-data:
