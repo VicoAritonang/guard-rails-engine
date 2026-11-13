@@ -27,7 +27,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/vicoaritonang/guardrails-engine/internal/core"
+	"github.com/VicoAritonang/guard-rails-engine/internal/core"
 )
 
 // Entry is a cached upstream completion.

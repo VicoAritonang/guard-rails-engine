@@ -5,6 +5,17 @@
 # in its tool annotations. A tool with no grade gets default_grade, and its
 # annotations may only RAISE that (destructiveHint -> irreversible), never
 # lower it: readOnlyHint from an untrusted server is a claim, not a fact.
+#
+# This file ships pointing at the deliberately hostile demo server. For a real
+# server, add its URL and grades, and replace session_capabilities below with the
+# capabilities your agents actually need. A server that needs authentication
+# takes headers, whose values can read the environment:
+#
+#   - name: github
+#     url: https://example.com/mcp
+#     trust: trusted
+#     headers:
+#       Authorization: Bearer ${GITHUB_MCP_TOKEN}
 servers:
   - name: demo
     url: ${GUARDRAILS_MCP_DEMO_URL:-http://localhost:8090/mcp}

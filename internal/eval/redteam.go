@@ -6,7 +6,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/vicoaritonang/guardrails-engine/internal/core"
+	"github.com/VicoAritonang/guard-rails-engine/internal/core"
 )
 
 // Mutator rewrites an attack prompt into an equivalent one that a naive

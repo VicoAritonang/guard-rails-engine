@@ -14,7 +14,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/vicoaritonang/guardrails-engine/internal/experiment"
+	"github.com/VicoAritonang/guard-rails-engine/internal/experiment"
 )
 
 // runLoadgen drives realistic mixed traffic through a running gateway so the

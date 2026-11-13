@@ -3,12 +3,16 @@ build/
 *.test
 *.out
 *.prof
-.env
 .DS_Store
 
 # build artefacts from profiling runs
 *.test.exe
+
+# Credentials. .env.example is the one that belongs in the repository.
 .env
+.env.*
+!.env.example
+
 # Recorded model calls: reproducible locally, but they are model outputs
 # paid for with your key. Commit them deliberately if you want to share them.
 experiments/.callcache/
@@ -16,4 +20,14 @@ experiments/.callcache/
 # redistribution); manifest.json pins what was fetched.
 experiments/benchmarks/*.jsonl
 .claude
-/docs
+
+# SDK build output
+dist/
+__pycache__/
+*.egg-info/
+node_modules/
+
+# Working notes, not project documentation.
+/docs/explaining.md
+/docs/environment_instruction.md
+/docs/guard_rails.md

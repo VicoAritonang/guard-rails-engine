@@ -9,10 +9,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vicoaritonang/guardrails-engine/config"
-	"github.com/vicoaritonang/guardrails-engine/internal/core"
-	"github.com/vicoaritonang/guardrails-engine/internal/guards"
-	"github.com/vicoaritonang/guardrails-engine/internal/guards/runtime"
+	"github.com/VicoAritonang/guard-rails-engine/config"
+	"github.com/VicoAritonang/guard-rails-engine/internal/core"
+	"github.com/VicoAritonang/guard-rails-engine/internal/guards"
+	"github.com/VicoAritonang/guard-rails-engine/internal/guards/runtime"
 )
 
 type harness struct {

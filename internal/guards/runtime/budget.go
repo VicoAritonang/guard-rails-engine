@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/vicoaritonang/guardrails-engine/config"
-	"github.com/vicoaritonang/guardrails-engine/internal/core"
+	"github.com/VicoAritonang/guard-rails-engine/config"
+	"github.com/VicoAritonang/guard-rails-engine/internal/core"
 )
 
 // BudgetBreaker caps the cumulative spend of a single agent trace.

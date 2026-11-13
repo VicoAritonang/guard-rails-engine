@@ -10,14 +10,14 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/vicoaritonang/guardrails-engine/config"
-	"github.com/vicoaritonang/guardrails-engine/internal/agent"
-	"github.com/vicoaritonang/guardrails-engine/internal/core"
-	"github.com/vicoaritonang/guardrails-engine/internal/guards/inbound"
-	"github.com/vicoaritonang/guardrails-engine/internal/guards/outbound"
-	"github.com/vicoaritonang/guardrails-engine/internal/guards/runtime"
-	"github.com/vicoaritonang/guardrails-engine/internal/guards/toolresult"
-	"github.com/vicoaritonang/guardrails-engine/internal/telemetry"
+	"github.com/VicoAritonang/guard-rails-engine/config"
+	"github.com/VicoAritonang/guard-rails-engine/internal/agent"
+	"github.com/VicoAritonang/guard-rails-engine/internal/core"
+	"github.com/VicoAritonang/guard-rails-engine/internal/guards/inbound"
+	"github.com/VicoAritonang/guard-rails-engine/internal/guards/outbound"
+	"github.com/VicoAritonang/guard-rails-engine/internal/guards/runtime"
+	"github.com/VicoAritonang/guard-rails-engine/internal/guards/toolresult"
+	"github.com/VicoAritonang/guard-rails-engine/internal/telemetry"
 )
 
 // Deps are the collaborators guards need beyond their own config.

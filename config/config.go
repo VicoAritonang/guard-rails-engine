@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"net"
 	"os"
 	"strconv"
 	"strings"
@@ -85,6 +86,9 @@ type Config struct {
 
 	// OTLPEndpoint enables trace export (host:port of an OTLP/HTTP receiver).
 	OTLPEndpoint string
+	// OTLPInsecure sends traces over plain HTTP. It suits a collector on the
+	// same network; a hosted backend needs it off.
+	OTLPInsecure bool
 	// LogFile, when set, receives a copy of every log line as JSON, for a log
 	// shipper to tail. Stdout stays the primary sink.
 	LogFile string
@@ -94,7 +98,16 @@ type Config struct {
 	EnvFile string
 
 	APIKeys []string
-	Secret  []byte
+	// AdminKeys, when set, are the only keys that may mint approvals, re-pin a
+	// quarantined tool or start an experiment. Without them an agent holding an
+	// ordinary API key could approve its own irreversible calls.
+	AdminKeys []string
+	Secret    []byte
+
+	// InsecureDev accepts an open gateway on a non-loopback address. It exists
+	// for a container whose port is published on the host's loopback only, which
+	// the process cannot see from inside.
+	InsecureDev bool
 
 	LogLevel        string
 	LogFormat       string
@@ -127,7 +140,7 @@ func FromEnv() (*Config, error) {
 
 	c := &Config{
 		EnvFile:         loaded,
-		Addr:            envStr("GUARDRAILS_ADDR", ":8080"),
+		Addr:            envStr("GUARDRAILS_ADDR", "127.0.0.1:8080"),
 		RequestTimeout:  envDur("GUARDRAILS_REQUEST_TIMEOUT", 60*time.Second),
 		ShutdownTimeout: envDur("GUARDRAILS_SHUTDOWN_TIMEOUT", 25*time.Second),
 		DrainDelay:      envDur("GUARDRAILS_DRAIN_DELAY", 2*time.Second),
@@ -174,6 +187,8 @@ func FromEnv() (*Config, error) {
 
 		UpstreamMaxRetries: envInt("GUARDRAILS_UPSTREAM_MAX_RETRIES", 0),
 		OTLPEndpoint:       envStr("GUARDRAILS_OTLP_ENDPOINT", ""),
+		OTLPInsecure:       envBool("GUARDRAILS_OTLP_INSECURE", true),
+		InsecureDev:        envBool("GUARDRAILS_INSECURE_DEV", false),
 		MCPPath:            envStr("GUARDRAILS_MCP", ""),
 		ExperimentsDir:     envStr("GUARDRAILS_EXPERIMENTS_DIR", ""),
 		ExperimentsRun:     envBool("GUARDRAILS_EXPERIMENTS_RUN", false),
@@ -189,13 +204,8 @@ func FromEnv() (*Config, error) {
 		Dashboard:       envBool("GUARDRAILS_DASHBOARD", true),
 	}
 
-	if raw := os.Getenv("GUARDRAILS_API_KEYS"); raw != "" {
-		for _, k := range strings.Split(raw, ",") {
-			if k = strings.TrimSpace(k); k != "" {
-				c.APIKeys = append(c.APIKeys, k)
-			}
-		}
-	}
+	c.APIKeys = keyList("GUARDRAILS_API_KEYS")
+	c.AdminKeys = keyList("GUARDRAILS_ADMIN_KEYS")
 
 	if raw := os.Getenv("GUARDRAILS_SECRET"); raw != "" {
 		if len(raw) < 16 {
@@ -263,6 +273,63 @@ func FromEnv() (*Config, error) {
 		return nil, fmt.Errorf("set either GUARDRAILS_POLICY or GUARDRAILS_STRICT, not both")
 	}
 	return c, nil
+}
+
+// publishedSecrets are values that appear in this repository's examples.
+// Anyone can read them, so anyone can forge an approval signed with one.
+var publishedSecrets = map[string]bool{
+	"change-me-to-a-long-random-string": true,
+	"local-dev-secret-key-32chars":      true,
+}
+
+// WeakSecret reports whether the secret is one of the published examples.
+func (c *Config) WeakSecret() bool { return publishedSecrets[string(c.Secret)] }
+
+// CheckExposure refuses a configuration that would publish an open gateway.
+//
+// It is separate from FromEnv because only the server listens: grctl reads the
+// same environment and has nothing to expose. A gateway holding a provider key
+// and answering anyone on the network is a free proxy billed to its operator,
+// and a published secret lets anyone forge a human approval, so both stop the
+// process rather than scroll past as a warning. A loopback address is exempt,
+// and GUARDRAILS_INSECURE_DEV covers a container published on loopback only.
+func (c *Config) CheckExposure() error {
+	if c.InsecureDev || loopbackAddr(c.Addr) {
+		return nil
+	}
+	if c.WeakSecret() {
+		return fmt.Errorf("GUARDRAILS_SECRET is a published example value and %s is reachable from the network: "+
+			"generate one with `openssl rand -hex 32`", c.Addr)
+	}
+	upstream := c.Provider != "mock" || c.OpenAIAPIKey != "" || c.AnthropicAPIKey != "" || c.GroqAPIKey != ""
+	if len(c.APIKeys) == 0 && upstream {
+		return fmt.Errorf("no GUARDRAILS_API_KEYS set and %s is reachable from the network, so anyone could spend "+
+			"your provider quota: set API keys, listen on 127.0.0.1, or set GUARDRAILS_INSECURE_DEV=true "+
+			"for a port published on loopback only", c.Addr)
+	}
+	return nil
+}
+
+func loopbackAddr(addr string) bool {
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		return false
+	}
+	if host == "localhost" {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
+}
+
+func keyList(env string) []string {
+	var out []string
+	for _, k := range strings.Split(os.Getenv(env), ",") {
+		if k = strings.TrimSpace(k); k != "" {
+			out = append(out, k)
+		}
+	}
+	return out
 }
 
 func envStr(key, def string) string {

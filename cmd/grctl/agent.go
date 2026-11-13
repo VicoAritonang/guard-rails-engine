@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vicoaritonang/guardrails-engine/internal/agent"
-	"github.com/vicoaritonang/guardrails-engine/internal/core"
+	"github.com/VicoAritonang/guard-rails-engine/internal/agent"
+	"github.com/VicoAritonang/guard-rails-engine/internal/core"
 )
 
 func writeJSONOut(w io.Writer, v any) error {

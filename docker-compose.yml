@@ -12,12 +12,19 @@
 #
 # A guardrail whose telemetry nobody has looked at is a guardrail nobody knows
 # is broken, so the observability stack is part of the default `up`.
+#
+# This is a development stack: nothing here requires a password, so every port
+# is published on the host's loopback only. To run the gateway for real, use
+# deploy/compose/docker-compose.yml.
 
 x-gateway-image: &gateway-image
   build:
     context: .
     args:
       VERSION: local
+      # `up` rebuilds, and CI already gates every commit on the suite. Set
+      # GUARDRAILS_BUILD_TESTS=true to run it inside the image build as well.
+      RUN_TESTS: ${GUARDRAILS_BUILD_TESTS:-false}
   image: guardrails-engine:local
 
 services:
@@ -32,10 +39,16 @@ services:
       - path: .env
         required: false
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     environment:
-      # Must be identical across replicas: it keys the redaction vault.
-      GUARDRAILS_SECRET: ${GUARDRAILS_SECRET:-local-dev-secret-key-32chars}
+      # The container listens on every interface, but the port above is on the
+      # host's loopback only, which the process cannot see from inside.
+      GUARDRAILS_INSECURE_DEV: "true"
+      # Empty means a random secret per start. Set it in .env to keep approvals
+      # valid across restarts. It must be identical across replicas.
+      GUARDRAILS_SECRET: ${GUARDRAILS_SECRET:-}
+      GUARDRAILS_API_KEYS: ${GUARDRAILS_API_KEYS:-}
+      GUARDRAILS_ADMIN_KEYS: ${GUARDRAILS_ADMIN_KEYS:-}
       GUARDRAILS_PROVIDER: ${GUARDRAILS_PROVIDER:-openai}
       GUARDRAILS_DEFAULT_MODEL: ${GUARDRAILS_DEFAULT_MODEL:-gpt-5-mini}
       GUARDRAILS_MODELS: /etc/guardrails/models.yaml
@@ -51,11 +64,11 @@ services:
       # gateway's own function-calling agent at /v1/agent/run.
       GUARDRAILS_MCP: /etc/guardrails/mcp.yaml
       GUARDRAILS_MCP_DEMO_URL: http://mcp-demo:8090/mcp
-      # The showcase renders experiment results from here and can start new
-      # runs. Runs spend real API quota; set GUARDRAILS_EXPERIMENTS_RUN=false
-      # to make the page read-only.
+      # The showcase renders experiment results from here. Runs spend real API
+      # quota, so starting them from the page is off until you set
+      # GUARDRAILS_EXPERIMENTS_RUN=true in .env.
       GUARDRAILS_EXPERIMENTS_DIR: /srv/experiments
-      GUARDRAILS_EXPERIMENTS_RUN: ${GUARDRAILS_EXPERIMENTS_RUN:-true}
+      GUARDRAILS_EXPERIMENTS_RUN: ${GUARDRAILS_EXPERIMENTS_RUN:-false}
       GUARDRAILS_EVAL_CORPUS: /usr/share/guardrails/eval
       # Efficiency
       GUARDRAILS_CACHE_SIZE: "2000"
@@ -89,6 +102,8 @@ services:
   mcp-demo:
     <<: *gateway-image
     entrypoint: ["/usr/local/bin/grctl", "mcp-demo", "--addr", ":8090", "--rug-pull-after", "3"]
+    healthcheck:
+      disable: true # the image's probe is for the gateway
     read_only: true
     security_opt:
       - no-new-privileges:true
@@ -98,7 +113,7 @@ services:
   prometheus:
     image: prom/prometheus:v3.5.0
     ports:
-      - "9090:9090"
+      - "127.0.0.1:9090:9090"
     volumes:
       - ./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./deploy/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
@@ -109,11 +124,12 @@ services:
   grafana:
     image: grafana/grafana:12.1.1
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     environment:
+      # Anonymous visitors can look. Sign in to change anything.
       GF_AUTH_ANONYMOUS_ENABLED: "true"
-      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
-      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
       GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/guardrails.json
     volumes:
       - ./deploy/grafana/provisioning:/etc/grafana/provisioning:ro
@@ -126,14 +142,14 @@ services:
   jaeger:
     image: jaegertracing/jaeger:2.9.0
     ports:
-      - "16686:16686"   # UI
-      - "4318:4318"     # OTLP/HTTP, for a gateway run outside compose
+      - "127.0.0.1:16686:16686"   # UI
+      - "127.0.0.1:4318:4318"     # OTLP/HTTP, for a gateway run outside compose
 
   loki:
     image: grafana/loki:3.5.3
     command: -config.file=/etc/loki/local-config.yaml
     ports:
-      - "3100:3100"
+      - "127.0.0.1:3100:3100"
 
   alloy:
     image: grafana/alloy:v1.10.2

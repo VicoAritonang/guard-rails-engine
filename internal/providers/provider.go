@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/vicoaritonang/guardrails-engine/internal/core"
+	"github.com/VicoAritonang/guard-rails-engine/internal/core"
 )
 
 // Request is a provider-neutral completion request.

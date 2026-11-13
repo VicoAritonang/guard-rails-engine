@@ -13,8 +13,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/vicoaritonang/guardrails-engine/internal/core"
-	"github.com/vicoaritonang/guardrails-engine/internal/judge"
+	"github.com/VicoAritonang/guard-rails-engine/internal/core"
+	"github.com/VicoAritonang/guard-rails-engine/internal/judge"
 )
 
 // BenchmarksOptions configures the public-benchmark run.

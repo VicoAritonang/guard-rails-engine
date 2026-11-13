@@ -102,20 +102,39 @@ type Usage struct {
 	CacheWriteTokens int `json:"cache_creation_input_tokens,omitempty"`
 }
 
+// ToolResult is what a tool returned, submitted before the model reads it.
+type ToolResult struct {
+	CallID  string `json:"call_id,omitempty"`
+	Name    string `json:"name"`
+	Content string `json:"content"`
+	Error   string `json:"error,omitempty"`
+	// Origin says who could have written the content, such as "web" for a fetch
+	// tool. The stricter origins get the stricter rails.
+	Origin string `json:"origin,omitempty"`
+}
+
 // Request is the payload submitted for a decision.
 type Request struct {
-	Tenant     string         `json:"tenant,omitempty"`
-	Model      string         `json:"model,omitempty"`
-	System     string         `json:"system,omitempty"`
-	Messages   []Message      `json:"messages,omitempty"`
-	Completion string         `json:"completion,omitempty"`
-	Context    []string       `json:"context,omitempty"`
-	ToolCalls  []ToolCall     `json:"tool_calls,omitempty"`
-	History    []ToolCall     `json:"history,omitempty"`
-	Step       int            `json:"step,omitempty"`
-	Usage      Usage          `json:"usage,omitzero"`
-	CostUSD    float64        `json:"cost_usd,omitempty"`
-	Meta       map[string]any `json:"meta,omitempty"`
+	Tenant      string         `json:"tenant,omitempty"`
+	Model       string         `json:"model,omitempty"`
+	System      string         `json:"system,omitempty"`
+	Messages    []Message      `json:"messages,omitempty"`
+	Completion  string         `json:"completion,omitempty"`
+	Context     []string       `json:"context,omitempty"`
+	ToolCalls   []ToolCall     `json:"tool_calls,omitempty"`
+	History     []ToolCall     `json:"history,omitempty"`
+	ToolResults []ToolResult   `json:"tool_results,omitempty"`
+	Step        int            `json:"step,omitempty"`
+	Usage       Usage          `json:"usage,omitzero"`
+	CostUSD     float64        `json:"cost_usd,omitempty"`
+	Meta        map[string]any `json:"meta,omitempty"`
+
+	// Session is the agent's state, passed back unchanged on each step.
+	Session json.RawMessage `json:"session,omitempty"`
+
+	// VaultToken is Response.VaultToken from the inbound call. Without it the
+	// outbound stage cannot restore the values inbound masked.
+	VaultToken string `json:"vault_token,omitempty"`
 }
 
 // Span locates a finding in the original payload.
@@ -155,11 +174,20 @@ type Response struct {
 	// System and Messages come back REWRITTEN when the engine redacted. Send
 	// these to the provider, not your originals -- forwarding the originals
 	// silently defeats the redaction you just paid for.
-	System     string    `json:"system,omitempty"`
-	Messages   []Message `json:"messages,omitempty"`
-	Completion string    `json:"completion,omitempty"`
-	Blocked    bool      `json:"blocked"`
-	Reason     string    `json:"reason,omitempty"`
+	System      string       `json:"system,omitempty"`
+	Messages    []Message    `json:"messages,omitempty"`
+	Completion  string       `json:"completion,omitempty"`
+	ToolResults []ToolResult `json:"tool_results,omitempty"`
+	Blocked     bool         `json:"blocked"`
+	Reason      string       `json:"reason,omitempty"`
+
+	// Session is the agent state as this stage left it. Pass it back unchanged
+	// on the next step.
+	Session json.RawMessage `json:"session,omitempty"`
+
+	// VaultToken carries the placeholders of this exchange, encrypted. Pass it
+	// to Outbound. It is empty when nothing was masked.
+	VaultToken string `json:"vault_token,omitempty"`
 }
 
 // ErrBlocked is returned when policy refuses the payload. Callers should
@@ -183,6 +211,11 @@ func (c *Client) Inbound(ctx context.Context, req Request) (*Response, error) {
 // Runtime checks proposed tool calls inside an agent loop.
 func (c *Client) Runtime(ctx context.Context, req Request) (*Response, error) {
 	return c.guard(ctx, "runtime", req)
+}
+
+// ToolResult checks what a tool returned, before the model reads it.
+func (c *Client) ToolResult(ctx context.Context, req Request) (*Response, error) {
+	return c.guard(ctx, "tool_result", req)
 }
 
 // Outbound checks a model completion before it reaches the caller.
@@ -217,6 +250,11 @@ func (c *Client) guard(ctx context.Context, stage string, req Request) (*Respons
 		return c.unreachable(stage, req, err)
 	}
 
+	// A 5xx from a load balancer in front of a dead gateway is the same event
+	// as a refused connection, so the configured fail mode applies to it too.
+	if resp.StatusCode >= http.StatusInternalServerError {
+		return c.unreachable(stage, req, fmt.Errorf("gateway returned %d", resp.StatusCode))
+	}
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("sdk: gateway returned %d: %s",
 			resp.StatusCode, truncate(string(payload), 300))
@@ -247,9 +285,12 @@ func (c *Client) unreachable(stage string, req Request, cause error) (*Response,
 			Action:   "allow",
 			Degraded: true,
 		},
-		System:     req.System,
-		Messages:   req.Messages,
-		Completion: req.Completion,
+		System:      req.System,
+		Messages:    req.Messages,
+		Completion:  req.Completion,
+		ToolResults: req.ToolResults,
+		Session:     req.Session,
+		VaultToken:  req.VaultToken,
 	}, nil
 }
 

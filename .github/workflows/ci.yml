@@ -10,14 +10,23 @@ permissions:
 
 jobs:
   build:
-    name: build & test
-    runs-on: ubuntu-latest
+    name: build & test (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          go-version: "1.25"
+          persist-credentials: false
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
           cache: true
 
       - name: Verify formatting
@@ -44,11 +53,13 @@ jobs:
     name: guardrail quality gate
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          go-version: "1.25"
+          persist-credentials: false
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
           cache: true
 
       - name: Lint both shipped policies
@@ -92,7 +103,7 @@ jobs:
         if: always()
         run: cat build/eval/report.md >> "$GITHUB_STEP_SUMMARY" || true
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: eval-report
@@ -105,10 +116,12 @@ jobs:
     name: resilience experiment
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          go-version: "1.25"
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
           cache: true
       - name: Run the fault-injection experiment
         run: go run ./cmd/grctl experiment --out build/experiments resilience
@@ -120,15 +133,56 @@ jobs:
         if: always()
         run: cat build/experiments/runs/*/report.md >> "$GITHUB_STEP_SUMMARY" || true
 
+  vulnerabilities:
+    # A guardrail with a known hole in its own dependencies is a poor look, and
+    # the scan only reports what the code can actually reach.
+    name: known vulnerabilities
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+
+  sdks:
+    name: python and js clients
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13"
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+      - name: Run both clients against a live gateway
+        run: |
+          go run ./cmd/server &
+          for i in $(seq 1 60); do curl -sf localhost:8080/healthz >/dev/null && break || sleep 1; done
+          PYTHONPATH=sdks/python/src python3 sdks/check_python.py
+          node sdks/check_js.mjs
+
   benchmarks:
     name: latency benchmarks
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          go-version: "1.25"
+          persist-credentials: false
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
           cache: true
 
       # Informational rather than gating: shared CI runners are too noisy to
@@ -149,7 +203,9 @@ jobs:
     name: container image
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Build image
         run: docker build -t guardrails-engine:ci --build-arg VERSION=ci .
       - name: Smoke test the image

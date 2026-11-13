@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/vicoaritonang/guardrails-engine/internal/core"
-	"github.com/vicoaritonang/guardrails-engine/internal/providers"
+	"github.com/VicoAritonang/guard-rails-engine/internal/core"
+	"github.com/VicoAritonang/guard-rails-engine/internal/providers"
 )
 
 // ResilienceOptions configures the fault-injection experiment.

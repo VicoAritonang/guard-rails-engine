@@ -6,9 +6,9 @@ import (
 	"sort"
 	"time"
 
-	"github.com/vicoaritonang/guardrails-engine/config"
-	"github.com/vicoaritonang/guardrails-engine/internal/core"
-	"github.com/vicoaritonang/guardrails-engine/internal/guards"
+	"github.com/VicoAritonang/guard-rails-engine/config"
+	"github.com/VicoAritonang/guard-rails-engine/internal/core"
+	"github.com/VicoAritonang/guard-rails-engine/internal/guards"
 )
 
 // Harness runs a dataset through an engine and scores the result.

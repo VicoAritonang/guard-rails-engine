@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/vicoaritonang/guardrails-engine/internal/core"
-	"github.com/vicoaritonang/guardrails-engine/internal/judge"
+	"github.com/VicoAritonang/guard-rails-engine/internal/core"
+	"github.com/VicoAritonang/guard-rails-engine/internal/judge"
 )
 
 // decisionView is the console's projection of a stage decision: enough to

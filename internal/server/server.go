@@ -28,14 +28,14 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/vicoaritonang/guardrails-engine/config"
-	"github.com/vicoaritonang/guardrails-engine/internal/agent"
-	"github.com/vicoaritonang/guardrails-engine/internal/cache"
-	"github.com/vicoaritonang/guardrails-engine/internal/guards"
-	"github.com/vicoaritonang/guardrails-engine/internal/judge"
-	"github.com/vicoaritonang/guardrails-engine/internal/mcp"
-	"github.com/vicoaritonang/guardrails-engine/internal/providers"
-	"github.com/vicoaritonang/guardrails-engine/internal/telemetry"
+	"github.com/VicoAritonang/guard-rails-engine/config"
+	"github.com/VicoAritonang/guard-rails-engine/internal/agent"
+	"github.com/VicoAritonang/guard-rails-engine/internal/cache"
+	"github.com/VicoAritonang/guard-rails-engine/internal/guards"
+	"github.com/VicoAritonang/guard-rails-engine/internal/judge"
+	"github.com/VicoAritonang/guard-rails-engine/internal/mcp"
+	"github.com/VicoAritonang/guard-rails-engine/internal/providers"
+	"github.com/VicoAritonang/guard-rails-engine/internal/telemetry"
 )
 
 // Options configures the HTTP surface.
@@ -54,6 +54,11 @@ type Options struct {
 	// APIKeys gates every /v1 route. An empty set disables authentication,
 	// which is only appropriate behind a trusted mesh.
 	APIKeys []string
+
+	// AdminKeys, when set, are the only keys accepted on the routes that grant
+	// authority: minting an approval, re-pinning a quarantined tool, starting
+	// an experiment. Empty leaves those routes on APIKeys.
+	AdminKeys []string
 
 	// RequestTimeout bounds a whole request including the upstream call.
 	RequestTimeout time.Duration
@@ -96,6 +101,8 @@ type Server struct {
 	log  *slog.Logger
 	mux  *http.ServeMux
 	keys map[string]struct{}
+	// adminKeys gate the routes that grant authority; see Options.AdminKeys.
+	adminKeys map[string]struct{}
 
 	// broker executes tool calls that pass the tool-level controls. Nil when
 	// the tool_safety guard is disabled, in which case /v1/agent/* returns 503
@@ -135,9 +142,11 @@ func New(opts Options) (*Server, error) {
 		opts:    opts,
 		log:     opts.Logger,
 		mux:     http.NewServeMux(),
-		keys:    make(map[string]struct{}, len(opts.APIKeys)),
+		keys:    keySet(opts.APIKeys),
 		limiter: newRateLimiter(),
 		bus:     opts.Bus,
+
+		adminKeys: keySet(opts.AdminKeys),
 	}
 
 	// The broker is built from the engine's own tool-safety evaluator, not
@@ -152,11 +161,6 @@ func New(opts Options) (*Server, error) {
 			return nil, fmt.Errorf("server: tool broker: %w", err)
 		}
 		s.broker = b
-	}
-	for _, k := range opts.APIKeys {
-		if k = strings.TrimSpace(k); k != "" {
-			s.keys[k] = struct{}{}
-		}
 	}
 	if len(s.keys) == 0 {
 		s.log.Warn("no API keys configured: every /v1 route is unauthenticated")
@@ -193,7 +197,7 @@ func (s *Server) routes() {
 	// effect, so they carry the same protection as everything else in /v1.
 	s.mux.Handle("GET /v1/agent/tools", s.protect(http.HandlerFunc(s.handleAgentTools)))
 	s.mux.Handle("POST /v1/agent/execute", s.protect(http.HandlerFunc(s.handleAgentExecute)))
-	s.mux.Handle("POST /v1/agent/approve", s.protect(http.HandlerFunc(s.handleAgentApprove)))
+	s.mux.Handle("POST /v1/agent/approve", s.protectAdmin(http.HandlerFunc(s.handleAgentApprove)))
 	s.mux.Handle("POST /v1/agent/run", s.protect(http.HandlerFunc(s.handleAgentRun)))
 
 	// MCP: the gateway is an MCP server (Streamable HTTP) in front of the
@@ -202,34 +206,56 @@ func (s *Server) routes() {
 		s.mux.Handle("POST /mcp", s.protect(s.opts.MCP))
 		s.mux.Handle("DELETE /mcp", s.protect(s.opts.MCP))
 		s.mux.Handle("GET /v1/mcp/servers", s.protect(http.HandlerFunc(s.handleMCPServers)))
-		s.mux.Handle("POST /v1/mcp/repin", s.protect(http.HandlerFunc(s.handleMCPRepin)))
+		s.mux.Handle("POST /v1/mcp/repin", s.protectAdmin(http.HandlerFunc(s.handleMCPRepin)))
 	}
 	s.mux.Handle("GET /v1/events", s.protect(http.HandlerFunc(s.handleEvents)))
 	s.mux.Handle("GET /v1/lab", s.protect(http.HandlerFunc(s.handleLab)))
-	s.mux.Handle("POST /v1/lab/run", s.protect(http.HandlerFunc(s.handleLabRun)))
+	s.mux.Handle("POST /v1/lab/run", s.protectAdmin(http.HandlerFunc(s.handleLabRun)))
 
 	if s.opts.EnableDashboard {
 		// The showcase is the front door; the operator console sits beside it.
 		s.mux.HandleFunc("GET /{$}", s.handleShowcase)
 		s.mux.HandleFunc("GET /console", s.handleDashboard)
-		// The playground shares the guard handler but is reachable without an
-		// API key so the console works out of the box on localhost. It is
-		// registered only when the dashboard is explicitly enabled.
-		s.mux.HandleFunc("POST /playground", s.handleGuard)
-		// The live showcase: animation driven by the event stream, plus the
-		// latest experiment results. Same exposure rule as the console.
 		s.mux.HandleFunc("GET /showcase", s.handleShowcase)
-		s.mux.HandleFunc("GET /events", s.handleEvents)
+		// The pages are static and open, but everything that returns data goes
+		// through protect. With no API keys that is only a rate and size limit,
+		// so the console works on localhost; with keys, turning on the dashboard
+		// must not open a way around them. Without a key the pages fall back to
+		// their labelled simulation.
+		s.mux.Handle("POST /playground", s.protect(http.HandlerFunc(s.handleGuard)))
+		s.mux.Handle("GET /events", s.protect(http.HandlerFunc(s.handleEvents)))
 		if s.opts.ExperimentsDir != "" {
-			s.mux.Handle("GET /showcase/experiments/", http.StripPrefix("/showcase/experiments/",
-				http.FileServer(http.Dir(s.opts.ExperimentsDir))))
+			s.mux.Handle("GET /showcase/experiments/", s.protect(http.StripPrefix("/showcase/experiments/",
+				reportFiles(http.FileServer(http.Dir(s.opts.ExperimentsDir))))))
 		}
 	}
+}
+
+// reportFiles serves experiment output. Dot paths stay private, because
+// .callcache holds recorded model calls, and a report renders as a sandboxed
+// document: it embeds model output, and a script in it must not run with this
+// origin's access to the API.
+func reportFiles(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		for _, seg := range strings.Split(r.URL.Path, "/") {
+			if strings.HasPrefix(seg, ".") {
+				http.NotFound(w, r)
+				return
+			}
+		}
+		w.Header().Set("Content-Security-Policy", "sandbox; default-src 'none'; style-src 'unsafe-inline'; img-src data:")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		next.ServeHTTP(w, r)
+	})
 }
 
 // Handler returns the fully-wrapped http.Handler.
 func (s *Server) Handler() http.Handler {
 	var h http.Handler = s.mux
+	// Without this, any web page open in a browser on the same machine can POST
+	// to a local gateway. API clients send no Origin or Sec-Fetch-Site headers
+	// and are unaffected.
+	h = http.NewCrossOriginProtection().Handler(h)
 	h = s.withTimeout(h)
 	h = s.withLogging(h)
 	h = s.withTracing(h)
@@ -307,7 +333,7 @@ const ctxRequestID ctxKey = "request_id"
 func (s *Server) withRequestID(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		id := r.Header.Get("X-Request-Id")
-		if id == "" {
+		if !validRequestID(id) {
 			id = newID()
 		}
 		w.Header().Set("X-Request-Id", id)
@@ -320,7 +346,7 @@ func (s *Server) withRequestID(next http.Handler) http.Handler {
 // response header so a caller holding a surprising response can jump straight
 // to its trace.
 func (s *Server) withTracing(next http.Handler) http.Handler {
-	tr := otel.Tracer("github.com/vicoaritonang/guardrails-engine/server")
+	tr := otel.Tracer("github.com/VicoAritonang/guard-rails-engine/server")
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/healthz", "/readyz", "/metrics":
@@ -346,6 +372,23 @@ func (s *Server) withTracing(next http.Handler) http.Handler {
 			span.SetStatus(codes.Error, http.StatusText(rec.status))
 		}
 	})
+}
+
+// validRequestID bounds a caller-supplied ID. It is echoed in a response header
+// and written to every log line, and it defaults the trace an approval binds to.
+func validRequestID(id string) bool {
+	if id == "" || len(id) > 128 {
+		return false
+	}
+	for _, r := range id {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9':
+		case r == '-', r == '_', r == '.', r == ':':
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 func requestID(ctx context.Context) string {
@@ -441,19 +484,29 @@ func (s *Server) withLogging(next http.Handler) http.Handler {
 }
 
 // protect applies authentication and per-key rate limiting.
-func (s *Server) protect(next http.Handler) http.Handler {
+func (s *Server) protect(next http.Handler) http.Handler { return s.gate(s.keys, next) }
+
+// protectAdmin is protect for the routes that grant authority.
+func (s *Server) protectAdmin(next http.Handler) http.Handler {
+	if len(s.adminKeys) == 0 {
+		return s.protect(next)
+	}
+	return s.gate(s.adminKeys, next)
+}
+
+func (s *Server) gate(keys map[string]struct{}, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		key := extractKey(r)
-		if len(s.keys) > 0 {
-			if !s.validKey(key) {
+		// Only a verified key names a bucket. Taking the header's word for it
+		// would let a caller reset its own limit by sending a new value.
+		bucket := "anonymous"
+		if len(keys) > 0 {
+			key := extractKey(r)
+			if !validKey(keys, key) {
 				writeError(w, http.StatusUnauthorized, "unauthorized",
 					"provide a valid key via Authorization: Bearer <key> or X-Api-Key")
 				return
 			}
-		}
-		bucket := key
-		if bucket == "" {
-			bucket = "anonymous"
+			bucket = key
 		}
 		if !s.limiter.allow(bucket) {
 			w.Header().Set("Retry-After", "1")
@@ -467,17 +520,27 @@ func (s *Server) protect(next http.Handler) http.Handler {
 
 // validKey compares in constant time. A timing-variable comparison on an API
 // key is a small leak, but it is a free one to close.
-func (s *Server) validKey(candidate string) bool {
+func validKey(keys map[string]struct{}, candidate string) bool {
 	if candidate == "" {
 		return false
 	}
 	ok := false
-	for k := range s.keys {
+	for k := range keys {
 		if subtle.ConstantTimeCompare([]byte(k), []byte(candidate)) == 1 {
 			ok = true
 		}
 	}
 	return ok
+}
+
+func keySet(keys []string) map[string]struct{} {
+	out := make(map[string]struct{}, len(keys))
+	for _, k := range keys {
+		if k = strings.TrimSpace(k); k != "" {
+			out[k] = struct{}{}
+		}
+	}
+	return out
 }
 
 func extractKey(r *http.Request) string {
@@ -592,10 +655,18 @@ func newID() string {
 
 // handleModels lists what the proxy can route to, and the live state behind it.
 func (s *Server) handleModels(w http.ResponseWriter, _ *http.Request) {
-	out := map[string]any{"provider": s.opts.Provider.Name()}
+	// object and data are the OpenAI list shape; the rest is this gateway's.
+	data := []modelEntry{}
+	out := map[string]any{"object": "list", "provider": s.opts.Provider.Name()}
 	if s.opts.Router != nil {
+		routes := s.opts.Router.Routes()
+		for _, rt := range routes {
+			if rt.Tier != "classifier" {
+				data = append(data, modelEntry{ID: rt.Alias, Object: "model", OwnedBy: rt.Provider})
+			}
+		}
 		out["providers"] = s.opts.Router.Providers()
-		out["routes"] = s.opts.Router.Routes()
+		out["routes"] = routes
 		out["unavailable"] = s.opts.Router.Unavailable()
 		out["circuits"] = s.opts.Router.CircuitStates()
 	}
@@ -618,6 +689,7 @@ func (s *Server) handleModels(w http.ResponseWriter, _ *http.Request) {
 		tier["combine"] = o.Combine
 	}
 	out["semantic_tier"] = tier
+	out["data"] = data
 	writeJSON(w, http.StatusOK, out)
 }
 

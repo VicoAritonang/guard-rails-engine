@@ -1,6 +1,6 @@
 package inbound
 
-import "github.com/vicoaritonang/guardrails-engine/internal/core/normalize"
+import "github.com/VicoAritonang/guard-rails-engine/internal/core/normalize"
 
 // valueSafeLayer reports whether a decoded layer may be scanned by a detector
 // that extracts exact VALUES (the PII and secrets guards) rather than meaning.

@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/vicoaritonang/guardrails-engine/config"
-	"github.com/vicoaritonang/guardrails-engine/internal/agent"
-	"github.com/vicoaritonang/guardrails-engine/internal/core"
+	"github.com/VicoAritonang/guard-rails-engine/config"
+	"github.com/VicoAritonang/guard-rails-engine/internal/agent"
+	"github.com/VicoAritonang/guard-rails-engine/internal/core"
 )
 
 // ToolSafety applies the tool-level control plane to a proposed call.

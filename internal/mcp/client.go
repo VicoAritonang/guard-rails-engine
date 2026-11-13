@@ -23,6 +23,8 @@ import (
 type Client struct {
 	Name string
 	URL  string
+	// Headers go on every request, for an upstream that needs authentication.
+	Headers map[string]string
 
 	http    *http.Client
 	mu      sync.Mutex
@@ -36,7 +38,12 @@ func NewClient(name, url string, timeout time.Duration) *Client {
 	if timeout <= 0 {
 		timeout = 20 * time.Second
 	}
-	return &Client{Name: name, URL: url, http: &http.Client{Timeout: timeout}}
+	return &Client{Name: name, URL: url, http: &http.Client{
+		Timeout: timeout,
+		// A redirect from an untrusted server would point this client, with its
+		// session and credentials, at a host the operator never reviewed.
+		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+	}}
 }
 
 // ListTools returns the upstream's current tool definitions.
@@ -103,6 +110,9 @@ func (c *Client) post(ctx context.Context, body any) (*http.Response, error) {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json, text/event-stream")
 	req.Header.Set("MCP-Protocol-Version", ProtocolVersion)
+	for k, v := range c.Headers {
+		req.Header.Set(k, v)
+	}
 	c.mu.Lock()
 	if c.session != "" {
 		req.Header.Set("Mcp-Session-Id", c.session)

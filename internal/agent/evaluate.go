@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vicoaritonang/guardrails-engine/internal/core"
+	"github.com/VicoAritonang/guard-rails-engine/internal/core"
 )
 
 // Request is one proposed tool call, with everything the controls need to
@@ -664,7 +664,7 @@ func (e *Evaluator) checkApproval(a *Assessment, t *Tool, req Request, sig strin
 		})
 		return
 	}
-	if req.Session.ApprovalSpent(grant.ID) {
+	if req.Session.ApprovalSpent(grant.ID) || e.opts.Approver.Spent(grant.ID) {
 		// One approval, one action. Without this, an agent that obtained a
 		// signature for one payment could make the same payment in a loop, and
 		// every call would verify perfectly.
@@ -704,6 +704,7 @@ func (e *Evaluator) Commit(req Request, a *Assessment) {
 	if req.ApprovalToken != "" && e.opts.Approver != nil {
 		if g, err := e.opts.Approver.Verify(req.ApprovalToken, req.Trace, tool.Name, a.Signature); err == nil {
 			s.ConsumeApproval(g.ID)
+			e.opts.Approver.Spend(g)
 		}
 	}
 }

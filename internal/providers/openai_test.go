@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vicoaritonang/guardrails-engine/internal/core"
+	"github.com/VicoAritonang/guard-rails-engine/internal/core"
 )
 
 // fakeOpenAI stands in for the API. Driving the real SDK against it exercises

@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vicoaritonang/guardrails-engine/internal/core"
-	"github.com/vicoaritonang/guardrails-engine/internal/tokenize"
+	"github.com/VicoAritonang/guard-rails-engine/internal/core"
+	"github.com/VicoAritonang/guard-rails-engine/internal/tokenize"
 )
 
 // Mock is a deterministic in-process provider.

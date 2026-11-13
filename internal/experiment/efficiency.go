@@ -7,9 +7,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/vicoaritonang/guardrails-engine/internal/cache"
-	"github.com/vicoaritonang/guardrails-engine/internal/core"
-	"github.com/vicoaritonang/guardrails-engine/internal/providers"
+	"github.com/VicoAritonang/guard-rails-engine/internal/cache"
+	"github.com/VicoAritonang/guard-rails-engine/internal/core"
+	"github.com/VicoAritonang/guard-rails-engine/internal/providers"
 )
 
 // FAQGroup is one question with paraphrases (same answer) and near-misses

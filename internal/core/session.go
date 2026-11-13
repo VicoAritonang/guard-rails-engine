@@ -23,7 +23,7 @@ import (
 // is acceptable here because the caller is the agent runtime, which sits inside
 // the trust boundary; it stops being acceptable the moment the state becomes
 // browser-supplied, and the fix at that point is to sign it. See
-// docs/adr/0006-tool-safety.md.
+// docs/adr/0006-tool-level-safety.md.
 type SessionState struct {
 	TraceID string `json:"trace_id,omitempty"`
 	Step    int    `json:"step,omitempty"`

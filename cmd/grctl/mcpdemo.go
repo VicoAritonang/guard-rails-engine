@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/vicoaritonang/guardrails-engine/internal/mcp"
+	"github.com/VicoAritonang/guard-rails-engine/internal/mcp"
 )
 
 // runMCPDemo serves the hostile demo MCP server the gateway is tested against.

@@ -3,6 +3,7 @@ package agent
 import (
 	"net"
 	"net/url"
+	"strconv"
 	"strings"
 )
 
@@ -23,9 +24,17 @@ func HostScope(host string) string {
 			return "metadata"
 		}
 	}
-	if ip := net.ParseIP(h); ip != nil {
-		if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() ||
-			ip.IsLinkLocalMulticast() || ip.IsUnspecified() {
+	ip := net.ParseIP(h)
+	if ip == nil {
+		ip = parseLooseIPv4(h)
+	}
+	if ip != nil {
+		for _, m := range MetadataHosts {
+			if ip.String() == m {
+				return "metadata"
+			}
+		}
+		if nonPublicIP(ip) {
 			return "private"
 		}
 		return "public"
@@ -39,6 +48,52 @@ func HostScope(host string) string {
 		return "private"
 	}
 	return "public"
+}
+
+// nonPublicIP covers every range a request from inside a network must not be
+// talked into reaching.
+func nonPublicIP(ip net.IP) bool {
+	if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() ||
+		ip.IsMulticast() || ip.IsUnspecified() {
+		return true
+	}
+	if v4 := ip.To4(); v4 != nil {
+		// 0.0.0.0/8 reaches the local host on Linux, and 100.64.0.0/10 is
+		// carrier-grade NAT, which cloud providers use for internal services.
+		return v4[0] == 0 || (v4[0] == 100 && v4[1]&0xc0 == 64)
+	}
+	return false
+}
+
+// parseLooseIPv4 reads the address forms inet_aton accepts and net.ParseIP does
+// not: "127.1", "2130706433", "0x7f.0.0.1", "0177.0.0.1". An HTTP client on the
+// agent's side resolves all of them to a real address, so treating them as
+// hostnames would classify the loopback as public.
+func parseLooseIPv4(h string) net.IP {
+	parts := strings.Split(h, ".")
+	if len(parts) > 4 {
+		return nil
+	}
+	var addr uint64
+	for i, p := range parts {
+		v, err := strconv.ParseUint(p, 0, 32)
+		if err != nil {
+			return nil
+		}
+		if i < len(parts)-1 {
+			if v > 255 {
+				return nil
+			}
+			addr |= v << (24 - 8*i)
+			continue
+		}
+		// The last part fills every byte the earlier parts left.
+		if v >= 1<<(8*(5-len(parts))) {
+			return nil
+		}
+		addr |= v
+	}
+	return net.IPv4(byte(addr>>24), byte(addr>>16), byte(addr>>8), byte(addr))
 }
 
 // MetadataHosts are the cloud instance-metadata endpoints. A tool call that
@@ -69,12 +124,17 @@ func ParseDestination(raw string) Destination {
 		return d
 	}
 	low := strings.ToLower(v)
-	if strings.HasPrefix(low, "http://") || strings.HasPrefix(low, "https://") {
+	// Any scheme counts: a tool that follows ftp:// or gopher:// reaches the
+	// same hosts, and the opaque path below would skip the host checks. A URL
+	// that does not parse stays a URL with an unknown host, because reading it
+	// as an email address would take the host from after the "@".
+	if strings.Contains(low, "://") {
+		d.Kind = "url"
 		if u, err := url.Parse(v); err == nil && u.Hostname() != "" {
-			d.Kind, d.Host = "url", strings.ToLower(u.Hostname())
+			d.Host = strings.ToLower(u.Hostname())
 			d.Scope = HostScope(d.Host)
-			return d
 		}
+		return d
 	}
 	// An address may arrive as "Name <user@example.com>".
 	if i := strings.LastIndex(v, "<"); i >= 0 && strings.HasSuffix(v, ">") {

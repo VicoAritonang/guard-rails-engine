@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vicoaritonang/guardrails-engine/internal/core"
+	"github.com/VicoAritonang/guard-rails-engine/internal/core"
 )
 
 func TestParseJudgeJSONTolerance(t *testing.T) {

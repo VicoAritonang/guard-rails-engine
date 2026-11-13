@@ -1,13 +1,20 @@
 package core
 
 import (
+	"crypto/aes"
+	"crypto/cipher"
 	"crypto/hmac"
+	"crypto/rand"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
 	"sync"
+	"time"
 )
 
 // Vault holds the mapping between a masked placeholder and the original
@@ -122,6 +129,103 @@ func (v *Vault) Labels() []string {
 		}
 	}
 	return out
+}
+
+// vaultTokenTTL bounds how long a sealed vault stays usable. It only has to
+// outlive one model call.
+const vaultTokenTTL = time.Hour
+
+// sealedVault is the plaintext of a vault token.
+type sealedVault struct {
+	Expires int64       `json:"exp"`
+	Entries [][2]string `json:"entries"` // placeholder, original
+}
+
+// vaultAEAD derives the token cipher. Deriving it keeps the secret's other uses
+// (placeholder digests, approval signatures) on separate keys.
+func vaultAEAD(secret []byte) (cipher.AEAD, error) {
+	mac := hmac.New(sha256.New, secret)
+	mac.Write([]byte("guardrails.vault.seal.v1"))
+	block, err := aes.NewCipher(mac.Sum(nil))
+	if err != nil {
+		return nil, err
+	}
+	return cipher.NewGCM(block)
+}
+
+// Seal encrypts the vault into a token the caller carries between stages.
+//
+// It is how a stateless gateway restores placeholders across two HTTP calls: the
+// mapping leaves as ciphertext with the inbound response and comes back with the
+// outbound request, so the gateway never stores it. An empty vault seals to "".
+func (v *Vault) Seal() (string, error) {
+	if v == nil {
+		return "", nil
+	}
+	v.mu.RLock()
+	p := sealedVault{Expires: time.Now().Add(vaultTokenTTL).Unix()}
+	for _, ph := range v.order {
+		p.Entries = append(p.Entries, [2]string{ph, v.fwd[ph]})
+	}
+	v.mu.RUnlock()
+	if len(p.Entries) == 0 {
+		return "", nil
+	}
+
+	aead, err := vaultAEAD(v.secret)
+	if err != nil {
+		return "", err
+	}
+	plain, err := json.Marshal(p)
+	if err != nil {
+		return "", err
+	}
+	nonce := make([]byte, aead.NonceSize())
+	if _, err := rand.Read(nonce); err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(aead.Seal(nonce, nonce, plain, nil)), nil
+}
+
+// Unseal loads a token from Seal into this vault. Any failure, including an
+// expired or tampered token, leaves the vault unchanged.
+func (v *Vault) Unseal(token string) error {
+	errBad := errors.New("vault token is invalid or expired")
+	raw, err := base64.RawURLEncoding.DecodeString(token)
+	if err != nil {
+		return errBad
+	}
+	aead, err := vaultAEAD(v.secret)
+	if err != nil {
+		return err
+	}
+	if len(raw) < aead.NonceSize() {
+		return errBad
+	}
+	plain, err := aead.Open(nil, raw[:aead.NonceSize()], raw[aead.NonceSize():], nil)
+	if err != nil {
+		return errBad
+	}
+	var p sealedVault
+	if err := json.Unmarshal(plain, &p); err != nil || time.Now().Unix() > p.Expires {
+		return errBad
+	}
+
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	for _, e := range p.Entries {
+		ph, value := e[0], e[1]
+		m := placeholderRE.FindStringSubmatch(ph)
+		if m == nil {
+			return errBad
+		}
+		if _, ok := v.fwd[ph]; !ok {
+			v.order = append(v.order, ph)
+		}
+		v.fwd[ph] = value
+		v.rev[m[1]+"\x00"+value] = ph
+	}
+	return nil
 }
 
 func normalizeLabel(s string) string {

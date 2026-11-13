@@ -1,0 +1,40 @@
+# Run the published image, without building anything or cloning the repository
+# beyond this file.
+#
+#   export GUARDRAILS_SECRET=$(openssl rand -hex 32)
+#   export GUARDRAILS_API_KEYS=$(openssl rand -hex 24)
+#   export OPENAI_API_KEY=sk-...
+#   docker compose -f deploy/compose/docker-compose.yml up -d
+#
+# The port stays on the host's loopback. Put a TLS-terminating proxy in front to
+# serve other machines, or set GUARDRAILS_BIND=0.0.0.0 on a trusted network.
+# The repository's root docker-compose.yml is the development stack with the
+# observability tools; this file is the gateway alone.
+
+services:
+  guardrails:
+    image: ghcr.io/vicoaritonang/guard-rails-engine:${GUARDRAILS_VERSION:-latest}
+    restart: unless-stopped
+    ports:
+      - "${GUARDRAILS_BIND:-127.0.0.1}:8080:8080"
+    environment:
+      # Both are required: compose stops here if either is missing.
+      GUARDRAILS_SECRET: ${GUARDRAILS_SECRET:?generate one with openssl rand -hex 32}
+      GUARDRAILS_API_KEYS: ${GUARDRAILS_API_KEYS:?set at least one API key}
+      # Separate keys for approvals. Without them, any API key can approve.
+      GUARDRAILS_ADMIN_KEYS: ${GUARDRAILS_ADMIN_KEYS:-}
+      GUARDRAILS_PROVIDER: ${GUARDRAILS_PROVIDER:-openai}
+      GUARDRAILS_DEFAULT_MODEL: ${GUARDRAILS_DEFAULT_MODEL:-}
+      GUARDRAILS_MODELS: /etc/guardrails/models.yaml
+      GUARDRAILS_PRICING: /etc/guardrails/pricing.yaml
+      GUARDRAILS_POLICY: /etc/guardrails/policies/${GUARDRAILS_POLICY_NAME:-balanced}.yaml
+      GUARDRAILS_DASHBOARD: ${GUARDRAILS_DASHBOARD:-false}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL

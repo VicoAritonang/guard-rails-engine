@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/vicoaritonang/guardrails-engine/internal/core"
+	"github.com/VicoAritonang/guard-rails-engine/internal/core"
 )
 
 // guardRequest is the validate-mode payload.
@@ -30,6 +30,10 @@ type guardRequest struct {
 	// trajectory-aware and the engine holds no per-trace state of its own, so
 	// the caller owns this and passes it back each step.
 	Session *core.SessionState `json:"session,omitempty"`
+
+	// VaultToken is the token an earlier stage returned. Passing it to the
+	// outbound stage is what restores the values inbound masked.
+	VaultToken string `json:"vault_token,omitempty"`
 }
 
 // guardResponse returns the decision and the payload as the engine left it.
@@ -49,6 +53,15 @@ type guardResponse struct {
 	// rather than refused -- for the same reason the messages do: a caller that
 	// keeps its own agent loop needs the sanitised text, not just a verdict.
 	ToolResults []core.ToolResult `json:"tool_results,omitempty"`
+
+	// Session is the agent state as this stage left it, for the caller to pass
+	// back on the next step.
+	Session *core.SessionState `json:"session,omitempty"`
+
+	// VaultToken is the encrypted placeholder map, present when this exchange
+	// masked anything. The gateway keeps no copy, so the caller holds it until
+	// the outbound call.
+	VaultToken string `json:"vault_token,omitempty"`
 }
 
 func (s *Server) handleGuard(w http.ResponseWriter, r *http.Request) {
@@ -79,6 +92,12 @@ func (s *Server) handleGuard(w http.ResponseWriter, r *http.Request) {
 	}
 
 	tx := s.transaction(&req, stage)
+	if req.VaultToken != "" {
+		if err := tx.Vault.Unseal(req.VaultToken); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_request", err.Error())
+			return
+		}
+	}
 	dec, _ := pipe.Execute(r.Context(), tx)
 	s.opts.Auditor.Record(r.Context(), tx, dec)
 	s.publishDecision("guard."+string(stage), tx, dec)
@@ -88,6 +107,7 @@ func (s *Server) handleGuard(w http.ResponseWriter, r *http.Request) {
 		Blocked:  dec.Blocked(),
 		System:   tx.System,
 		Messages: tx.Messages,
+		Session:  tx.Session,
 	}
 	switch stage {
 	case core.StageOutbound:
@@ -98,6 +118,12 @@ func (s *Server) handleGuard(w http.ResponseWriter, r *http.Request) {
 	if dec.Blocked() {
 		resp.Reason = dec.Reason()
 	}
+	token, err := tx.Vault.Seal()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal_error", "could not seal the vault")
+		return
+	}
+	resp.VaultToken = token
 
 	// Validate mode always returns 200: the caller asked a question and got an
 	// answer. A blocked decision is the answer, not a transport failure, and

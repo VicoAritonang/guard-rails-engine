@@ -20,7 +20,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/vicoaritonang/guardrails-engine/internal/core"
+	"github.com/VicoAritonang/guard-rails-engine/internal/core"
 )
 
 // Case is one labelled example.

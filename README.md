@@ -1,5 +1,9 @@
 # Guardrails Engine
 
+[![ci](https://github.com/VicoAritonang/guard-rails-engine/actions/workflows/ci.yml/badge.svg)](https://github.com/VicoAritonang/guard-rails-engine/actions/workflows/ci.yml)
+[![Go Reference](https://pkg.go.dev/badge/github.com/VicoAritonang/guard-rails-engine.svg)](https://pkg.go.dev/github.com/VicoAritonang/guard-rails-engine)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 A production-shaped AI guardrails and evaluation engine in Go. It sits between an
 application and an LLM provider, enforces policy at four interception points, and
 (the part most guardrail projects skip) **measures whether the policy actually
@@ -43,6 +47,58 @@ why the red-team column, the flat-precision warning in the report, and
 Full breakdown, including the precision/recall curve and every remaining gap:
 [`docs/eval-report.md`](docs/eval-report.md).
 
+## Use it
+
+Run a gateway. With no provider key it answers from a free mock model, so this
+works straight away:
+
+```bash
+docker run --rm -p 127.0.0.1:8080:8080 ghcr.io/vicoaritonang/guard-rails-engine:latest
+```
+
+Then pick the way in that suits your code. All of them run the same guards.
+
+**Change one line.** The gateway speaks the OpenAI API, so the OpenAI SDKs,
+LangChain, LlamaIndex, the Vercel AI SDK and anything else with a base URL work
+as they are:
+
+```python
+client = OpenAI(base_url="http://localhost:8080/v1", api_key="your-gateway-key")
+```
+
+**Keep your provider code** and check what goes in and comes out, from
+[Python](sdks/python/README.md), [JavaScript or TypeScript](sdks/js/README.md),
+[Go](pkg/sdk/client.go) or plain HTTP:
+
+```python
+from guard_rails_engine import Client   # pip install guard-rails-engine
+
+gr = Client("http://localhost:8080")
+inbound = gr.inbound(messages=[{"role": "user", "content": prompt}])
+answer = call_your_model(inbound.messages)   # the rewritten payload
+print(gr.outbound(completion=answer, vault_token=inbound.vault_token).completion)
+```
+
+**Embed it in a Go program**, with no gateway to run:
+
+```go
+import "github.com/VicoAritonang/guard-rails-engine/pkg/guardrails"
+
+g, _ := guardrails.New(guardrails.Options{})
+in, err := g.Inbound(ctx, guardrails.Request{Messages: messages})
+```
+
+**Guard an agent's tools.** `POST /mcp` sits in front of your MCP servers, for
+Claude, Cursor and any other MCP client.
+
+The [integration guide](docs/integrations.md) has working setups for each of
+these, and what the proxy does differently from OpenAI. Before exposing a gateway
+to a network, read the [deployment checklist](SECURITY.md#deploying-safely).
+
+Bug reports, detection misses and pull requests are welcome: see
+[CONTRIBUTING.md](CONTRIBUTING.md). A prompt the engine got wrong is the most
+useful contribution there is.
+
 ## v3: MCP gateway, live showcase, public benchmarks
 
 **Open http://localhost:8080 after `make up`.** Autoplay starts sending sample
@@ -62,8 +118,9 @@ works** (seven steps, each sending one real example and lighting its station);
 **Tool calls · MCP** (scenarios and a live LLM agent); and **Experiments**:
 pick any experiment, run it quick (minutes, cents) or full, watch progress
 stream in, and get the headline numbers, findings and full report on the page.
-Web runs spend real quota and are enabled by `GUARDRAILS_EXPERIMENTS_RUN=true`
-(on in the compose stack). The operator console moved to `/console`.
+Web runs spend real quota, so they stay off until you set
+`GUARDRAILS_EXPERIMENTS_RUN=true` in `.env`. The operator console moved to
+`/console`.
 
 **MCP gateway** (`POST /mcp`, [ADR 0010](docs/adr/0010-mcp-gateway.md)). The
 gateway is an MCP server in front of MCP servers. Definitions are scanned for
@@ -201,7 +258,7 @@ make run
 ```dotenv
 GUARDRAILS_PROVIDER=openai
 OPENAI_API_KEY=sk-proj-...
-GUARDRAILS_SECRET=a-long-random-string-at-least-16-chars
+GUARDRAILS_SECRET=output-of-openssl-rand-hex-32
 ```
 
 `.env` is gitignored, and **a real environment variable always wins over it**,
@@ -209,8 +266,8 @@ so a stale committed default can never shadow the credential your orchestrator
 or CI injected. `make run` deliberately exports nothing itself for the same
 reason.
 
-Supported providers: `openai` (default model `gpt-5`), `anthropic`, `mock`, and
-`replay`. Because the OpenAI adapter honours `OPENAI_BASE_URL`, it also drives
+Supported providers: `openai` (default model `gpt-5`), `anthropic`, `groq`,
+`mock`, and `replay`. Because the OpenAI adapter honours `OPENAI_BASE_URL`, it also drives
 any OpenAI-compatible endpoint: Azure OpenAI, vLLM, Ollama, Groq, OpenRouter,
 or a local gateway.
 
@@ -691,6 +748,10 @@ if errors.Is(err, sdk.ErrBlocked) {
 }
 // Send res.Messages (the REWRITTEN payload), not your originals.
 completion := callYourProvider(res.Messages)
+
+// VaultToken carries the masked values, encrypted, so a stateless gateway can
+// restore them on this second call.
+out, err := gr.Outbound(ctx, sdk.Request{Completion: completion, VaultToken: res.VaultToken})
 ```
 
 **Proxy / enforce**: the engine sits in the request path and enforces the
@@ -702,11 +763,16 @@ curl -X POST localhost:8080/v1/chat/completions \
   -d '{"model":"claude-opus-5","messages":[{"role":"user","content":"..."}]}'
 ```
 
-Every proxied response carries what the engine did, even when it did nothing, because
-"why was my answer different today" has to be answerable:
+The route follows the OpenAI API, so existing clients work by changing their base
+URL; [the integration guide](docs/integrations.md#what-the-proxy-does-differently)
+lists what it refuses and why. Every proxied response also carries what the engine
+did, even when it did nothing, because "why was my answer different today" has to
+be answerable:
 
 ```json
 {
+  "object": "chat.completion",
+  "choices": [{ "index": 0, "message": { "role": "assistant", "content": "..." }, "finish_reason": "stop" }],
   "content": "...",
   "cost_usd": 0.00089,
   "guardrails": {
@@ -724,14 +790,17 @@ Every proxied response carries what the engine did, even when it did nothing, be
 | Method | Path | Purpose |
 |---|---|---|
 | `POST` | `/v1/guard/{inbound\|runtime\|tool_result\|outbound}` | Decision + rewritten payload |
-| `POST` | `/v1/chat/completions` | Proxy with enforcement |
+| `POST` | `/v1/chat/completions` | OpenAI-compatible proxy with enforcement |
+| `GET` | `/v1/models` | OpenAI model list, plus routes, circuits and cache state |
 | `GET` | `/v1/agent/tools` | Tool catalog with tiers, controls and config lint |
 | `POST` | `/v1/agent/execute` | Broker a tool call: assess, then act, then record |
-| `POST` | `/v1/agent/approve` | Mint a signed, single-use approval for one exact call |
+| `POST` | `/v1/agent/approve` | Mint a signed, single-use approval for one exact call (admin key) |
+| `POST` | `/v1/agent/run` | Run the gateway's own function-calling agent |
+| `POST` | `/mcp` | MCP server in front of the configured upstream servers |
 | `GET` | `/v1/policy` · `/v1/guards` | Effective policy introspection |
 | `GET` | `/metrics` | Prometheus |
 | `GET` | `/healthz` · `/readyz` | Liveness / readiness (unauthenticated) |
-| `GET` | `/` | Operator console |
+| `GET` | `/` · `/console` | Live showcase · operator console (`GUARDRAILS_DASHBOARD`) |
 
 A validate-mode block returns **200**: the caller asked a question and got an
 answer. Proxy-mode blocks return **422**, not 400: the request was well-formed
@@ -753,8 +822,9 @@ security engineer can change a rule without learning the deployment.
 
 | Variable | Default | Notes |
 |---|---|---|
-| `GUARDRAILS_SECRET` | *(generated)* | **Must be identical across replicas**, since it keys the redaction vault |
-| `GUARDRAILS_PROVIDER` | `mock` | `openai` · `anthropic` · `mock` · `replay` |
+| `GUARDRAILS_SECRET` | *(generated)* | **Must be identical across replicas**: it keys the vault and signs approvals |
+| `GUARDRAILS_ADDR` | `127.0.0.1:8080` | The Docker image sets `:8080` |
+| `GUARDRAILS_PROVIDER` | `mock` | `openai` · `anthropic` · `groq` · `mock` · `replay` |
 | `OPENAI_API_KEY` | *(none)* | Read from `.env` or the environment |
 | `OPENAI_BASE_URL` | OpenAI | Point at any OpenAI-compatible endpoint |
 | `OPENAI_ORG_ID` · `OPENAI_PROJECT_ID` | *(none)* | Scope billing and rate limits |
@@ -763,7 +833,10 @@ security engineer can change a rule without learning the deployment.
 | `GUARDRAILS_ENV_FILE` | `.env` | Where to look for the dotenv file |
 | `GUARDRAILS_PRICING` | built-in table | Override rates; see `config/pricing.yaml` |
 | `GUARDRAILS_POLICY` | built-in balanced | Path to a policy YAML |
-| `GUARDRAILS_API_KEYS` | *(none)* | Comma-separated; empty disables auth |
+| `GUARDRAILS_API_KEYS` | *(none)* | Comma-separated; empty disables auth, and the gateway then refuses to serve a network address with provider credentials |
+| `GUARDRAILS_ADMIN_KEYS` | *(none)* | Separate keys for approvals, re-pinning and experiment runs; unset, any API key can use them |
+| `GUARDRAILS_INSECURE_DEV` | `false` | Accept an open gateway, for a container published on loopback only |
+| `GUARDRAILS_DASHBOARD` | `true` | Serve the showcase and console pages |
 | `GUARDRAILS_STRICT` | `false` | Use the built-in strict profile |
 | `GUARDRAILS_TENANT_METRICS` | `false` | Adds a `tenant` label |
 
@@ -896,8 +969,11 @@ internal/agent    tool catalog, risk model, taint, approvals, execution broker
 internal/guards   inbound/ runtime/ toolresult/ outbound/ + checksum validators
 internal/eval     dataset, harness, confusion matrix, sweep, red team, reports
 internal/telemetry Prometheus, OpenTelemetry, cost engine, audit log
-internal/providers openai · anthropic · mock · replay (record/replay cassettes)
+internal/providers openai · anthropic · groq · mock · replay (record/replay cassettes)
+pkg/guardrails    public Go library: the engine, in process
 pkg/sdk           Go client for sidecar mode
+sdks/             Python and JavaScript clients
+deploy/           compose, Kubernetes, Grafana, Prometheus
 testdata/eval     labelled corpus
 ```
 
@@ -930,4 +1006,5 @@ Generated reference: [tool risk matrix](docs/tool-matrix.md) ·
 
 ## License
 
-MIT.
+[MIT](LICENSE). Contributions are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md),
+and [SECURITY.md](SECURITY.md) to report a vulnerability.

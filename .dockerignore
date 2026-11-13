@@ -1,7 +1,13 @@
 .env
+.env.*
+!.env.example
 build/
 .git/
+.github/
+.claude/
 docs/
+sdks/
+deploy/
 *.md
 !README.md
 experiments/runs/

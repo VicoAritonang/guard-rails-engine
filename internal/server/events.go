@@ -54,9 +54,17 @@ func (b *Bus) Publish(kind string, data any) {
 	}
 }
 
+// maxSubscribers bounds open streams. Each one pins a goroutine and a buffer
+// for as long as the client keeps the connection open.
+const maxSubscribers = 64
+
 func (b *Bus) subscribe() (chan Event, []Event, func()) {
-	ch := make(chan Event, 256)
 	b.mu.Lock()
+	if len(b.subs) >= maxSubscribers {
+		b.mu.Unlock()
+		return nil, nil, nil
+	}
+	ch := make(chan Event, 256)
 	b.subs[ch] = struct{}{}
 	recent := append([]Event(nil), b.ring...)
 	b.mu.Unlock()
@@ -74,13 +82,18 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotImplemented, "no_stream", "event streaming unavailable")
 		return
 	}
+	ch, recent, cancel := s.bus.subscribe()
+	if ch == nil {
+		w.Header().Set("Retry-After", "30")
+		writeError(w, http.StatusServiceUnavailable, "too_many_streams", "too many event streams are open")
+		return
+	}
+	defer cancel()
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("X-Accel-Buffering", "no")
 	w.WriteHeader(http.StatusOK)
 
-	ch, recent, cancel := s.bus.subscribe()
-	defer cancel()
 	write := func(ev Event) bool {
 		raw, err := json.Marshal(ev)
 		if err != nil {

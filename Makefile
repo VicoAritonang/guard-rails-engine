@@ -4,7 +4,7 @@
 # locally it passes in CI, and that property is worth more than any individual
 # target here.
 
-MODULE  := github.com/vicoaritonang/guardrails-engine
+MODULE  := github.com/VicoAritonang/guard-rails-engine
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -s -w -X main.version=$(VERSION)
 BUILD   := build
@@ -18,7 +18,7 @@ MAX_P99         ?= 50ms
 MIN_CATCH_RATE  ?= 0.90
 
 .DEFAULT_GOAL := check
-.PHONY: check build test race lint vet fmt eval redteam sweep bench cover run scan clean docker docker-run tidy ci tools agent matrix up down loadgen experiments experiment-offline dashboard bench-fetch benchmarks mcp-demo
+.PHONY: vuln check build test race lint vet fmt eval redteam sweep bench cover run scan clean docker docker-run tidy ci tools agent matrix up down loadgen experiments experiment-offline dashboard bench-fetch benchmarks mcp-demo
 
 ## check: everything CI runs
 check: fmt vet test eval redteam agent
@@ -46,6 +46,10 @@ cover:
 	go tool cover -func=$(BUILD)/coverage.out | tail -1
 	go tool cover -html=$(BUILD)/coverage.out -o $(BUILD)/coverage.html
 	@echo "report at $(BUILD)/coverage.html"
+
+## vuln: check dependencies and the toolchain for known vulnerabilities
+vuln:
+	go run golang.org/x/vuln/cmd/govulncheck@latest ./...
 
 ## vet: static analysis
 vet:
@@ -126,7 +130,6 @@ run:
 ## run-mock: start the gateway with no upstream, for a demo without a key
 run-mock:
 	GUARDRAILS_PROVIDER=mock \
-	GUARDRAILS_SECRET=local-dev-secret-key-32chars \
 	go run ./cmd/server
 
 ## scan: one-off scan, e.g. make scan TEXT="ignore all previous instructions"
@@ -139,9 +142,7 @@ docker:
 
 ## docker-run: run the image locally
 docker-run:
-	docker run --rm -p 8080:8080 \
-		-e GUARDRAILS_SECRET=local-dev-secret-key-32chars \
-		guardrails-engine:$(VERSION)
+	docker run --rm -p 127.0.0.1:8080:8080 guardrails-engine:$(VERSION)
 
 ## up: gateway + Prometheus + Grafana + Jaeger + Loki (docker compose)
 up:

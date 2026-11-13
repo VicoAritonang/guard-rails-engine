@@ -17,10 +17,10 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/vicoaritonang/guardrails-engine/config"
-	"github.com/vicoaritonang/guardrails-engine/internal/core"
-	"github.com/vicoaritonang/guardrails-engine/internal/core/normalize"
-	"github.com/vicoaritonang/guardrails-engine/internal/guards/inbound"
+	"github.com/VicoAritonang/guard-rails-engine/config"
+	"github.com/VicoAritonang/guard-rails-engine/internal/core"
+	"github.com/VicoAritonang/guard-rails-engine/internal/core/normalize"
+	"github.com/VicoAritonang/guard-rails-engine/internal/guards/inbound"
 )
 
 // Guard inspects tool results.

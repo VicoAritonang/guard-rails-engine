@@ -163,7 +163,7 @@ func NewRouter(opts RouterOptions) (*Router, error) {
 		}
 	}
 	opts.Breaker = opts.Breaker.withDefaults()
-	return &Router{opts: opts, tracer: otel.Tracer("github.com/vicoaritonang/guardrails-engine/providers")}, nil
+	return &Router{opts: opts, tracer: otel.Tracer("github.com/VicoAritonang/guard-rails-engine/providers")}, nil
 }
 
 func (r *Router) Name() string { return "router" }

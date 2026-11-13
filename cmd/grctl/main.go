@@ -44,6 +44,8 @@ func main() {
 		err = runLoadgen(ctx, os.Args[2:])
 	case "mcp-demo":
 		err = runMCPDemo(ctx, os.Args[2:])
+	case "healthcheck":
+		err = runHealthcheck(ctx)
 	case "version", "--version", "-v":
 		fmt.Println("grctl", version)
 	case "help", "-h", "--help":
@@ -78,6 +80,7 @@ Usage:
   grctl experiment [flags] Run the evidence suite on real models (detectors|asr|pii|efficiency|resilience|all)
   grctl loadgen    [flags] Drive mixed traffic through a running gateway (fills the dashboards)
   grctl mcp-demo   [flags] Serve a deliberately hostile MCP server (poisoning, rug pull, shadowing)
+  grctl healthcheck        Probe the local gateway (the container HEALTHCHECK)
   grctl version            Print the build version
 
 Run 'grctl <command> -h' for the flags of a command.

@@ -6,8 +6,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/vicoaritonang/guardrails-engine/config"
-	"github.com/vicoaritonang/guardrails-engine/internal/core"
+	"github.com/VicoAritonang/guard-rails-engine/config"
+	"github.com/VicoAritonang/guard-rails-engine/internal/core"
 )
 
 // Grounding flags sentences in a RAG answer that the retrieved context does

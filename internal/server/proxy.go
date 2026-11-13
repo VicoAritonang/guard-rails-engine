@@ -11,34 +11,46 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/vicoaritonang/guardrails-engine/internal/cache"
-	"github.com/vicoaritonang/guardrails-engine/internal/core"
-	"github.com/vicoaritonang/guardrails-engine/internal/judge"
-	"github.com/vicoaritonang/guardrails-engine/internal/providers"
-	"github.com/vicoaritonang/guardrails-engine/internal/telemetry"
+	"github.com/VicoAritonang/guard-rails-engine/internal/cache"
+	"github.com/VicoAritonang/guard-rails-engine/internal/core"
+	"github.com/VicoAritonang/guard-rails-engine/internal/judge"
+	"github.com/VicoAritonang/guard-rails-engine/internal/providers"
+	"github.com/VicoAritonang/guard-rails-engine/internal/telemetry"
 )
 
+// chatRequest is the proxy's view of a request, after decodeChat has read the
+// OpenAI wire format.
 type chatRequest struct {
-	Model     string         `json:"model"`
-	Tenant    string         `json:"tenant,omitempty"`
-	System    string         `json:"system,omitempty"`
-	Messages  []core.Message `json:"messages"`
-	MaxTokens int            `json:"max_tokens,omitempty"`
-	Context   []string       `json:"context,omitempty"`
-	Meta      map[string]any `json:"meta,omitempty"`
+	Model     string
+	Tenant    string
+	System    string
+	Messages  []core.Message
+	MaxTokens int
+	Context   []string
+	Meta      map[string]any
 	// Cache set to false bypasses the response cache for this request, as
 	// does a Cache-Control: no-cache request header.
-	Cache *bool `json:"cache,omitempty"`
+	Cache *bool
+
+	Stream       bool
+	IncludeUsage bool
+	// Ignored names the request fields this gateway did not act on.
+	Ignored []string
 }
 
+// chatResponse is an OpenAI chat completion. Content, StopReason, Provider,
+// Route, CostUSD and Guardrails are this engine's additions.
 type chatResponse struct {
 	ID         string         `json:"id"`
+	Object     string         `json:"object"`
+	Created    int64          `json:"created"`
 	Model      string         `json:"model"`
+	Choices    []chatChoice   `json:"choices"`
 	Provider   string         `json:"provider,omitempty"`
 	Route      string         `json:"route,omitempty"`
 	Content    string         `json:"content"`
 	StopReason string         `json:"stop_reason,omitempty"`
-	Usage      core.Usage     `json:"usage"`
+	Usage      chatUsage      `json:"usage"`
 	CostUSD    float64        `json:"cost_usd"`
 	Guardrails guardrailsMeta `json:"guardrails"`
 }
@@ -58,6 +70,10 @@ type guardrailsMeta struct {
 	Restored      int            `json:"restored"`
 	OverheadUS    int64          `json:"overhead_us"`
 	Degraded      bool           `json:"degraded,omitempty"`
+
+	// IgnoredParams lists request fields this gateway accepted and did not act
+	// on, such as temperature, so a setting with no effect is visible.
+	IgnoredParams []string `json:"ignored_params,omitempty"`
 
 	// Semantic tier outcomes, when the tier is enabled.
 	SemanticInbound  *judge.Outcome `json:"semantic_inbound,omitempty"`
@@ -95,7 +111,7 @@ type timing struct {
 	TotalMS    int64 `json:"total_ms"`
 }
 
-var proxyTracer = otel.Tracer("github.com/vicoaritonang/guardrails-engine/server")
+var proxyTracer = otel.Tracer("github.com/VicoAritonang/guard-rails-engine/server")
 
 func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 	if s.opts.Provider == nil {
@@ -105,11 +121,16 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 	}
 	began := time.Now()
 
-	var req chatRequest
-	if err := decodeJSON(r, &req); err != nil {
+	decoded, err := decodeChat(r)
+	if errors.Is(err, errUnsupported) {
+		writeError(w, http.StatusBadRequest, "unsupported_parameter", err.Error())
+		return
+	}
+	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_request", err.Error())
 		return
 	}
+	req := *decoded
 	if len(req.Messages) == 0 {
 		writeError(w, http.StatusBadRequest, "invalid_request", "messages must not be empty")
 		return
@@ -121,7 +142,8 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 		attribute.String("guardrails.tenant", req.Tenant))
 
 	vault := core.NewVault(s.opts.Secret)
-	meta := guardrailsMeta{PolicyVersion: s.opts.Policy.Version, Cache: "off", TraceID: telemetry.TraceID(ctx)}
+	meta := guardrailsMeta{PolicyVersion: s.opts.Policy.Version, Cache: "off", TraceID: telemetry.TraceID(ctx),
+		IgnoredParams: req.Ignored}
 	var (
 		cost      float64
 		resp      *providers.Response
@@ -272,7 +294,7 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 			var ue *providers.UpstreamError
 			status := http.StatusBadGateway
 			if errors.As(err, &ue) {
-				status = ue.StatusCode
+				status = clientStatus(ue.StatusCode)
 			}
 			s.log.Error("upstream call failed",
 				"error", err, "model", req.Model, "request_id", requestID(ctx))
@@ -384,17 +406,27 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 	if hit {
 		usage = core.Usage{} // nothing was consumed upstream for this request
 	}
-	writeJSON(w, http.StatusOK, chatResponse{
-		ID:         inTx.ID,
-		Model:      resp.Model,
-		Provider:   resp.Provider,
-		Route:      resp.Route,
-		Content:    outTx.Completion,
-		StopReason: resp.StopReason,
-		Usage:      usage,
-		CostUSD:    cost + meta.JudgeCostUSD,
-		Guardrails: meta,
-	})
+	out := newChatResponse(inTx.ID, began, outTx.Completion, resp.StopReason)
+	out.Model, out.Provider, out.Route = resp.Model, resp.Provider, resp.Route
+	out.Usage = usageOf(usage)
+	out.CostUSD = cost + meta.JudgeCostUSD
+	out.Guardrails = meta
+	if req.Stream {
+		writeChatStream(w, out, req.IncludeUsage)
+		return
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+// clientStatus maps an upstream failure to what this caller should see. An
+// upstream 401 or 403 means the gateway's own provider credential was refused,
+// and passing it through would tell a caller with a valid key that its key is
+// wrong.
+func clientStatus(upstream int) int {
+	if upstream < 400 || upstream == http.StatusUnauthorized || upstream == http.StatusForbidden {
+		return http.StatusBadGateway
+	}
+	return upstream
 }
 
 // semantic runs the semantic tier and audits an enforced verdict exactly like

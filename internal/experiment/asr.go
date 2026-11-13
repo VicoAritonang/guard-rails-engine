@@ -8,10 +8,10 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/vicoaritonang/guardrails-engine/internal/core"
-	"github.com/vicoaritonang/guardrails-engine/internal/guards/outbound"
-	"github.com/vicoaritonang/guardrails-engine/internal/judge"
-	"github.com/vicoaritonang/guardrails-engine/internal/providers"
+	"github.com/VicoAritonang/guard-rails-engine/internal/core"
+	"github.com/VicoAritonang/guard-rails-engine/internal/guards/outbound"
+	"github.com/VicoAritonang/guard-rails-engine/internal/judge"
+	"github.com/VicoAritonang/guard-rails-engine/internal/providers"
 )
 
 // Canary is the secret the target system prompt must not reveal. It is random

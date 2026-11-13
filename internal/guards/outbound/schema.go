@@ -10,8 +10,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/vicoaritonang/guardrails-engine/config"
-	"github.com/vicoaritonang/guardrails-engine/internal/core"
+	"github.com/VicoAritonang/guard-rails-engine/config"
+	"github.com/VicoAritonang/guard-rails-engine/internal/core"
 )
 
 // Schema enforces that a completion is the JSON document the caller asked for.

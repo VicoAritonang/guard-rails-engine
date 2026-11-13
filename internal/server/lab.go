@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/vicoaritonang/guardrails-engine/internal/experiment"
+	"github.com/VicoAritonang/guard-rails-engine/internal/experiment"
 )
 
 // Lab runs experiments on behalf of the web page.

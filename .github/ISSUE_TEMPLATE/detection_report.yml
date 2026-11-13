@@ -1,0 +1,54 @@
+name: Detection report
+description: The engine missed an attack, or flagged something harmless
+labels: ["detection"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        These reports become test cases, which is how detection improves.
+        Do not paste real personal data or real credentials: replace them with made-up values.
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What went wrong?
+      options:
+        - Missed an attack (false negative)
+        - Flagged something harmless (false positive)
+    validations:
+      required: true
+  - type: dropdown
+    id: stage
+    attributes:
+      label: Stage
+      options:
+        - inbound (prompt)
+        - runtime (tool call)
+        - tool_result (what a tool returned)
+        - outbound (model answer)
+    validations:
+      required: true
+  - type: textarea
+    id: payload
+    attributes:
+      label: Payload
+      description: The exact text. It is rendered as plain text.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What should have happened, and why?
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Output of grctl scan
+      description: "Run `grctl scan --text \"...\" --verbose` and paste the result."
+      render: text
+  - type: input
+    id: version
+    attributes:
+      label: Version and policy
+      placeholder: v0.1.0, balanced

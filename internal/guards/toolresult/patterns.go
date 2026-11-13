@@ -4,7 +4,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/vicoaritonang/guardrails-engine/internal/core/normalize"
+	"github.com/VicoAritonang/guard-rails-engine/internal/core/normalize"
 )
 
 // This file holds every pattern the tool-result rails match with, and it exists

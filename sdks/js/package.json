@@ -1,0 +1,28 @@
+{
+  "name": "guard-rails-engine",
+  "version": "0.1.0",
+  "description": "JavaScript and TypeScript client for Guardrails Engine: check prompts, tool calls and model output against a guardrails gateway.",
+  "type": "module",
+  "main": "./index.js",
+  "types": "./index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./index.js"
+    }
+  },
+  "files": ["index.js", "index.d.ts", "README.md"],
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": ["llm", "guardrails", "prompt-injection", "pii", "ai-safety", "mcp"],
+  "author": "Vico Aritonang",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/VicoAritonang/guard-rails-engine.git",
+    "directory": "sdks/js"
+  },
+  "homepage": "https://github.com/VicoAritonang/guard-rails-engine",
+  "bugs": "https://github.com/VicoAritonang/guard-rails-engine/issues"
+}

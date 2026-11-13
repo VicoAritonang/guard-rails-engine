@@ -932,7 +932,7 @@ section[id], div[id="live-sec"] { scroll-margin-top: 64px; }
     if (r.cache) { h += "<div class='lbl'>Cache</div><div style='color:var(--ink2)'>" + esc(r.cache.replace("_", " ")) + "</div><div class='val'></div>"; }
     if (r.route) {
       h += "<div class='lbl'>Model<small>" + esc(r.provider || "") + "</small></div><div style='color:var(--ink2)'>" + esc(r.route) +
-        (r.attempts && r.attempts.length > 1 ? " · fell back: " + r.attempts.map(function (a) { return a.route + (a.error ? " ✗" : " ✓"); }).join(" → ") : "") +
+        (r.attempts && r.attempts.length > 1 ? " · fell back: " + r.attempts.map(function (a) { return esc(a.route) + (a.error ? " ✗" : " ✓"); }).join(" → ") : "") +
         "</div><div class='val'>" + (tm.upstream_ms != null ? tm.upstream_ms + " ms" : "") + "</div>";
     }
     if (out.stage) { guardRow("Outbound", out); }

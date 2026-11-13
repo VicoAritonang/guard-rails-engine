@@ -24,7 +24,7 @@ type Tracer struct {
 // safe to wire unconditionally.
 func NewTracer(name string) *Tracer {
 	if name == "" {
-		name = "github.com/vicoaritonang/guardrails-engine"
+		name = "github.com/VicoAritonang/guard-rails-engine"
 	}
 	return &Tracer{tr: otel.Tracer(name)}
 }

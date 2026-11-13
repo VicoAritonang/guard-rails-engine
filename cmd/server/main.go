@@ -16,15 +16,15 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 
-	"github.com/vicoaritonang/guardrails-engine/config"
-	"github.com/vicoaritonang/guardrails-engine/internal/core"
-	"github.com/vicoaritonang/guardrails-engine/internal/experiment"
-	"github.com/vicoaritonang/guardrails-engine/internal/gateway"
-	"github.com/vicoaritonang/guardrails-engine/internal/guards"
-	"github.com/vicoaritonang/guardrails-engine/internal/guards/runtime"
-	"github.com/vicoaritonang/guardrails-engine/internal/mcp"
-	"github.com/vicoaritonang/guardrails-engine/internal/server"
-	"github.com/vicoaritonang/guardrails-engine/internal/telemetry"
+	"github.com/VicoAritonang/guard-rails-engine/config"
+	"github.com/VicoAritonang/guard-rails-engine/internal/core"
+	"github.com/VicoAritonang/guard-rails-engine/internal/experiment"
+	"github.com/VicoAritonang/guard-rails-engine/internal/gateway"
+	"github.com/VicoAritonang/guard-rails-engine/internal/guards"
+	"github.com/VicoAritonang/guard-rails-engine/internal/guards/runtime"
+	"github.com/VicoAritonang/guard-rails-engine/internal/mcp"
+	"github.com/VicoAritonang/guard-rails-engine/internal/server"
+	"github.com/VicoAritonang/guard-rails-engine/internal/telemetry"
 )
 
 var version = "dev" // set via -ldflags at build time
@@ -42,6 +42,10 @@ func run() error {
 		return err
 	}
 
+	if err := cfg.CheckExposure(); err != nil {
+		return err
+	}
+
 	logger, closeLog, err := newLogger(cfg)
 	if err != nil {
 		return err
@@ -49,12 +53,21 @@ func run() error {
 	defer closeLog()
 	slog.SetDefault(logger)
 
+	if cfg.WeakSecret() {
+		logger.Warn("GUARDRAILS_SECRET is a published example value: anyone can forge approvals until it is replaced",
+			"hint", "openssl rand -hex 32")
+	}
+	if cfg.SecretGenerated {
+		logger.Warn("GUARDRAILS_SECRET is unset, using a random one for this process",
+			"hint", "set it when running more than one replica, or approvals and vault tokens fail across them")
+	}
+
 	// Tracing first, so every tracer created below resolves to the exporting
 	// provider rather than OTel's no-op default.
 	if cfg.TracingEnabled || cfg.OTLPEndpoint != "" {
 		shutdown, err := telemetry.SetupTracing(context.Background(), telemetry.TracingOptions{
 			ServiceName: "guardrails-engine", Version: version,
-			Endpoint: cfg.OTLPEndpoint, Insecure: true,
+			Endpoint: cfg.OTLPEndpoint, Insecure: cfg.OTLPInsecure,
 		})
 		if err != nil {
 			logger.Warn("tracing disabled", "error", err)
@@ -214,6 +227,7 @@ func run() error {
 		Logger:          logger,
 		Secret:          cfg.Secret,
 		APIKeys:         cfg.APIKeys,
+		AdminKeys:       cfg.AdminKeys,
 		RequestTimeout:  cfg.RequestTimeout,
 		MaxBodyBytes:    cfg.MaxBodyBytes,
 		EnableDashboard: cfg.Dashboard,

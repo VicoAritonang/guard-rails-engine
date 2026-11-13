@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -36,11 +37,18 @@ type Grant struct {
 // Grants are self-contained signed tokens rather than rows in a table, for the
 // same reason the session state travels in the payload: the gateway stays
 // stateless and any replica can verify any grant. Single use is enforced
-// against the session's spent list, which the caller carries.
+// against the session's spent list, which the caller carries, and against a
+// local record of spent grants, because a caller that drops its session would
+// otherwise replay a grant until it expires. The local record is per replica:
+// it closes the replay on one instance, and a deployment that needs the
+// guarantee fleet-wide should route a trace to one replica or keep grants short.
 type Approver struct {
 	secret []byte
 	ttl    time.Duration
 	now    func() time.Time
+
+	mu    sync.Mutex
+	spent map[string]time.Time // grant ID -> when the grant expires anyway
 }
 
 // NewApprover builds an approver. The secret must be the same across the fleet,
@@ -55,7 +63,30 @@ func NewApprover(secret []byte, ttl time.Duration) (*Approver, error) {
 		// authorisation nobody remembers giving.
 		ttl = 10 * time.Minute
 	}
-	return &Approver{secret: append([]byte(nil), secret...), ttl: ttl, now: time.Now}, nil
+	return &Approver{secret: append([]byte(nil), secret...), ttl: ttl, now: time.Now,
+		spent: map[string]time.Time{}}, nil
+}
+
+// Spend records a grant as used. An entry only has to outlive the grant, since
+// Verify refuses an expired token anyway, which keeps the record bounded.
+func (a *Approver) Spend(g *Grant) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	now := a.now()
+	for id, exp := range a.spent {
+		if now.After(exp) {
+			delete(a.spent, id)
+		}
+	}
+	a.spent[g.ID] = g.ExpiresAt
+}
+
+// Spent reports whether this process has already used the grant.
+func (a *Approver) Spent(id string) bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	_, ok := a.spent[id]
+	return ok
 }
 
 // SetClock overrides the time source, for tests.

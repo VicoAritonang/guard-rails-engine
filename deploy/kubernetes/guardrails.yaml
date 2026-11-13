@@ -1,0 +1,97 @@
+# A gateway Deployment and Service. Create the secret first:
+#
+#   kubectl create secret generic guardrails \
+#     --from-literal=GUARDRAILS_SECRET="$(openssl rand -hex 32)" \
+#     --from-literal=GUARDRAILS_API_KEYS="$(openssl rand -hex 24)" \
+#     --from-literal=GUARDRAILS_ADMIN_KEYS="$(openssl rand -hex 24)" \
+#     --from-literal=OPENAI_API_KEY="sk-..."
+#   kubectl apply -f deploy/kubernetes/guardrails.yaml
+#
+# Replace the image tag with a released version. Every replica must share
+# GUARDRAILS_SECRET: it signs approvals and encrypts vault tokens, and a replica
+# with a different one rejects both.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: guardrails
+  labels:
+    app.kubernetes.io/name: guardrails
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: guardrails
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: guardrails
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: /metrics
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      # Longer than GUARDRAILS_DRAIN_DELAY plus GUARDRAILS_SHUTDOWN_TIMEOUT, so
+      # in-flight model calls finish before the kubelet kills the process.
+      terminationGracePeriodSeconds: 35
+      containers:
+        - name: guardrails
+          image: ghcr.io/vicoaritonang/guard-rails-engine:latest
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: GUARDRAILS_PROVIDER
+              value: openai
+            - name: GUARDRAILS_MODELS
+              value: /etc/guardrails/models.yaml
+            - name: GUARDRAILS_PRICING
+              value: /etc/guardrails/pricing.yaml
+            - name: GUARDRAILS_POLICY
+              value: /etc/guardrails/policies/balanced.yaml
+            - name: GUARDRAILS_DASHBOARD
+              value: "false"
+          envFrom:
+            - secretRef:
+                name: guardrails
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: guardrails
+  labels:
+    app.kubernetes.io/name: guardrails
+spec:
+  selector:
+    app.kubernetes.io/name: guardrails
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http

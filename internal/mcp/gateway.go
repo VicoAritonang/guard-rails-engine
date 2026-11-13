@@ -16,8 +16,8 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/vicoaritonang/guardrails-engine/internal/agent"
-	"github.com/vicoaritonang/guardrails-engine/internal/core"
+	"github.com/VicoAritonang/guard-rails-engine/internal/agent"
+	"github.com/VicoAritonang/guard-rails-engine/internal/core"
 )
 
 // Grade is the operator's risk grading of one upstream tool. It is the only
@@ -41,6 +41,9 @@ type ServerConfig struct {
 	// server count as attacker-authorable content for taint and the trifecta.
 	Trust string           `yaml:"trust"`
 	Tools map[string]Grade `yaml:"tools"`
+	// Headers are sent on every request to this server. Values may use
+	// ${ENV_VAR}, so a token never has to be written in the file.
+	Headers map[string]string `yaml:"headers"`
 }
 
 // Config is config/mcp.yaml.
@@ -167,7 +170,9 @@ func NewGateway(ctx context.Context, opts Options) (*Gateway, error) {
 		entries: map[string]*entry{}, pins: map[string]string{}, quarantine: map[string]Quarantined{},
 		sessions: map[string]*session{}}
 	for _, s := range opts.Config.Servers {
-		g.clients[s.Name] = NewClient(s.Name, s.URL, 20*time.Second)
+		c := NewClient(s.Name, s.URL, 20*time.Second)
+		c.Headers = s.Headers
+		g.clients[s.Name] = c
 		g.trust[s.Name] = s.Trust == "trusted"
 	}
 	if err := g.Sync(ctx); err != nil {

@@ -12,12 +12,12 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/vicoaritonang/guardrails-engine/config"
-	"github.com/vicoaritonang/guardrails-engine/internal/cache"
-	"github.com/vicoaritonang/guardrails-engine/internal/core"
-	"github.com/vicoaritonang/guardrails-engine/internal/judge"
-	"github.com/vicoaritonang/guardrails-engine/internal/providers"
-	"github.com/vicoaritonang/guardrails-engine/internal/telemetry"
+	"github.com/VicoAritonang/guard-rails-engine/config"
+	"github.com/VicoAritonang/guard-rails-engine/internal/cache"
+	"github.com/VicoAritonang/guard-rails-engine/internal/core"
+	"github.com/VicoAritonang/guard-rails-engine/internal/judge"
+	"github.com/VicoAritonang/guard-rails-engine/internal/providers"
+	"github.com/VicoAritonang/guard-rails-engine/internal/telemetry"
 )
 
 // Upstream bundles everything on the provider side of the gateway.

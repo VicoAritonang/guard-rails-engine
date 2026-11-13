@@ -1,0 +1,4 @@
+# Normalise line endings, so gofmt and shell scripts behave on every platform.
+* text=auto eol=lf
+*.exe binary
+*.png binary

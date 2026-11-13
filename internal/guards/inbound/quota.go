@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/vicoaritonang/guardrails-engine/config"
-	"github.com/vicoaritonang/guardrails-engine/internal/core"
-	"github.com/vicoaritonang/guardrails-engine/internal/telemetry"
-	"github.com/vicoaritonang/guardrails-engine/internal/tokenize"
+	"github.com/VicoAritonang/guard-rails-engine/config"
+	"github.com/VicoAritonang/guard-rails-engine/internal/core"
+	"github.com/VicoAritonang/guard-rails-engine/internal/telemetry"
+	"github.com/VicoAritonang/guard-rails-engine/internal/tokenize"
 )
 
 // Quota enforces the size and cost envelope of a single request.

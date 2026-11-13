@@ -32,12 +32,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/vicoaritonang/guardrails-engine/config"
-	"github.com/vicoaritonang/guardrails-engine/internal/core"
-	"github.com/vicoaritonang/guardrails-engine/internal/guards"
-	"github.com/vicoaritonang/guardrails-engine/internal/providers"
-	"github.com/vicoaritonang/guardrails-engine/internal/telemetry"
-	"github.com/vicoaritonang/guardrails-engine/internal/tokenize"
+	"github.com/VicoAritonang/guard-rails-engine/config"
+	"github.com/VicoAritonang/guard-rails-engine/internal/core"
+	"github.com/VicoAritonang/guard-rails-engine/internal/guards"
+	"github.com/VicoAritonang/guard-rails-engine/internal/providers"
+	"github.com/VicoAritonang/guard-rails-engine/internal/telemetry"
+	"github.com/VicoAritonang/guard-rails-engine/internal/tokenize"
 )
 
 // Env is what every experiment runs against.

@@ -4,8 +4,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/vicoaritonang/guardrails-engine/internal/core"
-	"github.com/vicoaritonang/guardrails-engine/internal/core/normalize"
+	"github.com/VicoAritonang/guard-rails-engine/internal/core"
+	"github.com/VicoAritonang/guard-rails-engine/internal/core/normalize"
 )
 
 // signal is one piece of evidence that a span of text is trying to hijack the

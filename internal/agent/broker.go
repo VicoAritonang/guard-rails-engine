@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/vicoaritonang/guardrails-engine/internal/core"
+	"github.com/VicoAritonang/guard-rails-engine/internal/core"
 )
 
 // Executor performs a tool call, or describes what it would do.
