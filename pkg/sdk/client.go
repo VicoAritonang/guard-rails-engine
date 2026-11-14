@@ -16,6 +16,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"time"
 )
@@ -84,6 +85,34 @@ func New(baseURL string, opts ...Option) (*Client, error) {
 type Message struct {
 	Role    string `json:"role"`
 	Content string `json:"content"`
+	// Parts are attachments: images, documents, audio, video.
+	Parts []Part `json:"parts,omitempty"`
+}
+
+// Part is an attachment. Set Data (sent as base64) and Name or MIME; the
+// gateway identifies the format from the bytes.
+type Part struct {
+	Type       string      `json:"type,omitempty"`
+	MIME       string      `json:"mime,omitempty"`
+	Name       string      `json:"name,omitempty"`
+	Data       []byte      `json:"data,omitempty"`
+	URL        string      `json:"url,omitempty"`
+	Format     string      `json:"format,omitempty"`
+	Text       string      `json:"text,omitempty"`
+	Extraction *Extraction `json:"extraction,omitempty"`
+}
+
+// Extraction is the gateway's report on what it read from a part.
+type Extraction struct {
+	Methods    []string  `json:"methods,omitempty"`
+	Coverage   string    `json:"coverage"`
+	Chars      int       `json:"chars,omitempty"`
+	Pages      int       `json:"pages,omitempty"`
+	Truncated  bool      `json:"truncated,omitempty"`
+	DurationMS int64     `json:"duration_ms"`
+	Findings   []Finding `json:"findings,omitempty"`
+	Warnings   []string  `json:"warnings,omitempty"`
+	Forwarded  string    `json:"forwarded,omitempty"`
 }
 
 // ToolCall is a proposed tool invocation.
@@ -111,6 +140,7 @@ type ToolResult struct {
 	// Origin says who could have written the content, such as "web" for a fetch
 	// tool. The stricter origins get the stricter rails.
 	Origin string `json:"origin,omitempty"`
+	Parts  []Part `json:"parts,omitempty"`
 }
 
 // Request is the payload submitted for a decision.
@@ -188,6 +218,74 @@ type Response struct {
 	// VaultToken carries the placeholders of this exchange, encrypted. Pass it
 	// to Outbound. It is empty when nothing was masked.
 	VaultToken string `json:"vault_token,omitempty"`
+
+	// Semantic is the model-classifier outcome, when the semantic tier ran.
+	Semantic json.RawMessage `json:"semantic,omitempty"`
+}
+
+// FileScan describes an upload to /v1/guard/media.
+type FileScan struct {
+	Name string
+	Data []byte
+	// Stage is "inbound" (default) or "tool_result" for retrieved content.
+	Stage  string
+	Text   string
+	Origin string
+	Tool   string
+	Tenant string
+}
+
+// ScanFile uploads one file as multipart/form-data and returns the decision.
+func (c *Client) ScanFile(ctx context.Context, f FileScan) (*Response, error) {
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+	for k, v := range map[string]string{"stage": f.Stage, "text": f.Text, "origin": f.Origin, "tool": f.Tool, "tenant": f.Tenant} {
+		if v != "" {
+			_ = mw.WriteField(k, v)
+		}
+	}
+	name := f.Name
+	if name == "" {
+		name = "upload.bin"
+	}
+	fw, err := mw.CreateFormFile("file", name)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := fw.Write(f.Data); err != nil {
+		return nil, err
+	}
+	if err := mw.Close(); err != nil {
+		return nil, err
+	}
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/v1/guard/media", &buf)
+	if err != nil {
+		return nil, fmt.Errorf("sdk: build request: %w", err)
+	}
+	httpReq.Header.Set("Content-Type", mw.FormDataContentType())
+	if c.apiKey != "" {
+		httpReq.Header.Set("Authorization", "Bearer "+c.apiKey)
+	}
+	resp, err := c.http.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("sdk: gateway unreachable: %w", err)
+	}
+	defer resp.Body.Close()
+	payload, err := io.ReadAll(io.LimitReader(resp.Body, 16<<20))
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("sdk: gateway returned %d: %s", resp.StatusCode, truncate(string(payload), 300))
+	}
+	var out Response
+	if err := json.Unmarshal(payload, &out); err != nil {
+		return nil, fmt.Errorf("sdk: decode response: %w", err)
+	}
+	if out.Blocked {
+		return &out, &BlockedError{Reason: out.Reason, Decision: out.Decision}
+	}
+	return &out, nil
 }
 
 // ErrBlocked is returned when policy refuses the payload. Callers should

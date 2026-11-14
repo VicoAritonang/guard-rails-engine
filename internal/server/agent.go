@@ -5,10 +5,10 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/VicoAritonang/guard-rails-engine/internal/agent"
-	"github.com/VicoAritonang/guard-rails-engine/internal/core"
-	"github.com/VicoAritonang/guard-rails-engine/internal/mcp"
-	"github.com/VicoAritonang/guard-rails-engine/internal/telemetry"
+	"go.vicoworks.com/guard-rails-engine/internal/agent"
+	"go.vicoworks.com/guard-rails-engine/internal/core"
+	"go.vicoworks.com/guard-rails-engine/internal/mcp"
+	"go.vicoworks.com/guard-rails-engine/internal/telemetry"
 )
 
 // The agent endpoints are the enforcement point for tool execution.

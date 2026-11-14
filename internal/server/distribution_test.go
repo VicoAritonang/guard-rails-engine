@@ -9,9 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/VicoAritonang/guard-rails-engine/config"
-	"github.com/VicoAritonang/guard-rails-engine/internal/guards"
-	"github.com/VicoAritonang/guard-rails-engine/internal/telemetry"
+	"go.vicoworks.com/guard-rails-engine/config"
+	"go.vicoworks.com/guard-rails-engine/internal/guards"
+	"go.vicoworks.com/guard-rails-engine/internal/telemetry"
 )
 
 // TestChatSpeaksOpenAI sends what an OpenAI SDK sends: sampling parameters, a
@@ -88,15 +88,17 @@ func TestChatStreamsAfterTheGuardsHaveRun(t *testing.T) {
 	}
 }
 
-// TestChatRefusesWhatItCannotGuard: tools and images would otherwise pass the
-// gateway unexamined.
+// TestChatRefusesWhatItCannotGuard: tools, uploaded-file references and
+// unknown part types would otherwise pass the gateway unexamined.
 func TestChatRefusesWhatItCannotGuard(t *testing.T) {
 	h := testServer(t, nil)
 	cases := map[string]string{
 		"tools": `{"model":"m","tools":[{"type":"function","function":{"name":"f"}}],
 			"messages":[{"role":"user","content":"hi"}]}`,
-		"image": `{"model":"m","messages":[{"role":"user","content":[
-			{"type":"image_url","image_url":{"url":"https://example.com/a.png"}}]}]}`,
+		"file id": `{"model":"m","messages":[{"role":"user","content":[
+			{"type":"file","file":{"file_id":"file-abc"}}]}]}`,
+		"unknown part": `{"model":"m","messages":[{"role":"user","content":[
+			{"type":"hologram","text":"x"}]}]}`,
 		"tool turn": `{"model":"m","messages":[{"role":"tool","tool_call_id":"1","content":"x"}]}`,
 		"n":         `{"model":"m","n":2,"messages":[{"role":"user","content":"hi"}]}`,
 	}
@@ -107,6 +109,22 @@ func TestChatRefusesWhatItCannotGuard(t *testing.T) {
 				t.Errorf("status = %d, want 400; body: %s", rec.Code, rec.Body.String())
 			}
 		})
+	}
+}
+
+// TestChatAcceptsImagesAndReportsCoverage: an image is accepted, and an image
+// nobody could read (a remote URL with fetching off) is reported, not passed
+// silently.
+func TestChatAcceptsImagesAndReportsCoverage(t *testing.T) {
+	h := testServer(t, nil)
+	rec := post(t, h, "/v1/chat/completions", `{"model":"m","messages":[{"role":"user","content":[
+		{"type":"text","text":"what is this?"},
+		{"type":"image_url","image_url":{"url":"https://example.com/a.png"}}]}]}`, nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "media.unscannable") {
+		t.Errorf("unread remote image was not reported: %s", rec.Body.String())
 	}
 }
 

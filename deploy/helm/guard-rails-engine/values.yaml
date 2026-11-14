@@ -1,0 +1,172 @@
+# guard-rails-engine Helm values.
+#
+# The chart follows the shape operators already know from Grafana's: one
+# Deployment, configuration as values (rendered to a ConfigMap and mounted
+# where the binary expects it), secrets from an existing Secret or created
+# here, optional ServiceMonitor, HPA, PDB and Ingress, and room for sidecars.
+#
+#   helm install guardrails deploy/helm/guard-rails-engine \
+#     --set secret.create=true \
+#     --set-string secret.values.OPENAI_API_KEY=sk-... \
+#     --set-string secret.values.GUARDRAILS_API_KEYS=$(openssl rand -hex 24)
+
+image:
+  repository: ghcr.io/vicoaritonang/guard-rails-engine
+  # Empty uses the chart's appVersion. Pin a released version or a digest in
+  # production; "latest" follows the main branch.
+  tag: "latest"
+  digest: ""
+  pullPolicy: IfNotPresent
+imagePullSecrets: []
+
+replicaCount: 2
+
+# --- Gateway settings (environment) -------------------------------------------
+# Everything here becomes an environment variable; see .env.example for the
+# full list. Credentials belong in `secret`, not here.
+env:
+  GUARDRAILS_PROVIDER: openai
+  GUARDRAILS_DEFAULT_MODEL: gpt-5-mini
+  GUARDRAILS_DASHBOARD: "false"        # the showcase page; the API works without it
+  GUARDRAILS_LOG_FORMAT: json
+  # Semantic tier (model classifiers behind the deterministic guards).
+  GUARDRAILS_JUDGE_MODE: "off"         # off | shadow | cascade | always
+  GUARDRAILS_JUDGE_CLASSIFIERS: prompt-guard-86m
+  GUARDRAILS_JUDGE_STAGES: inbound
+  # Multimodal readers (docs/multimodal.md). Documents and image metadata
+  # need nothing; these add OCR, speech-to-text and image safety.
+  GUARDRAILS_MEDIA_OCR: ""             # vision-ocr | http://ocr:8000/ocr
+  GUARDRAILS_MEDIA_TRANSCRIBE: ""      # openai | groq | local | http://whisper:8000/v1
+  GUARDRAILS_MEDIA_IMAGE_CLASSIFIERS: ""
+  GUARDRAILS_MAX_BODY_BYTES: "33554432"
+  GUARDRAILS_MEDIA_UPLOAD_BYTES: "33554432"
+
+# Extra env entries in Kubernetes form (valueFrom, fieldRef, ...).
+extraEnv: []
+
+# --- Secrets -------------------------------------------------------------------
+# GUARDRAILS_SECRET must be identical on every replica: it signs approvals and
+# encrypts vault tokens.
+secret:
+  # Use an existing Secret (recommended: External Secrets, Sealed Secrets, Vault).
+  existingSecret: ""
+  # Or let the chart create one from these values.
+  create: false
+  values: {}
+    # GUARDRAILS_SECRET: ""            # openssl rand -hex 32 (generated if empty)
+    # GUARDRAILS_API_KEYS: ""
+    # GUARDRAILS_ADMIN_KEYS: ""
+    # OPENAI_API_KEY: ""
+    # GROQ_API_KEY: ""
+    # ANTHROPIC_API_KEY: ""
+
+# --- Policy, model catalog, MCP ------------------------------------------------
+policy:
+  # Built-in profile shipped in the image: balanced | strict.
+  profile: balanced
+  # Or a full policy document, layered over the built-in defaults. When set,
+  # it is mounted as /etc/guardrails/custom/policy.yaml and used instead.
+  inline: ""
+  # inline: |
+  #   version: "1.0.0-acme"
+  #   name: acme
+  #   guards:
+  #     media:
+  #       categories:
+  #         media.unscannable: { action: block }
+  #     url_filter:
+  #       enabled: true
+  #       params: { allow: ["acme.com"] }
+
+models:
+  # Replace the shipped model catalog (config/models.yaml) with your own.
+  inline: ""
+
+mcp:
+  # MCP gateway config (config/mcp.yaml format). Empty disables /mcp.
+  inline: ""
+
+# --- Sidecars ---------------------------------------------------------------------
+# Containers that run next to the gateway in the same pod and are reached on
+# localhost: self-hosted classifiers, an OCR engine, a speech server. Example
+# (Prompt Guard 2 on text-embeddings-inference, CPU):
+#
+#   sidecars:
+#     - name: promptguard
+#       image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.8
+#       args: ["--model-id", "meta-llama/Llama-Prompt-Guard-2-86M", "--port", "8081"]
+#       env: [{ name: HF_TOKEN, valueFrom: { secretKeyRef: { name: hf, key: token } } }]
+#   env:
+#     GUARDRAILS_JUDGE_MODE: cascade
+#     GUARDRAILS_JUDGE_CLASSIFIERS: tei:http://localhost:8081
+sidecars: []
+extraVolumes: []
+extraVolumeMounts: []
+
+# --- Kubernetes plumbing -------------------------------------------------------------
+service:
+  type: ClusterIP
+  port: 8080
+  annotations: {}
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: guardrails.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    # Attachment parsing holds a file in memory while it is read; budget
+    # roughly concurrency x max_part_bytes x 3 above the 64 Mi baseline.
+    memory: 512Mi
+
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+serviceMonitor:
+  # Requires the Prometheus Operator CRDs.
+  enabled: false
+  interval: 30s
+  labels: {}
+
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "8080"
+  prometheus.io/path: /metrics
+podLabels: {}
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  runAsGroup: 65532
+  fsGroup: 65532
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: ["ALL"]
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
+terminationGracePeriodSeconds: 35

@@ -2,7 +2,8 @@ name: release
 
 # Pushing a tag such as v0.1.0 publishes everything from that commit:
 #
-#   Go module      nothing to do: the tag is the release (go get ...@v0.1.0)
+#   Go module      the tag is the release: go get go.vicoworks.com/guard-rails-engine@v0.1.0
+#                  (the go-module job checks the vanity path and warms proxy.golang.org)
 #   binaries       attached to a GitHub Release, with checksums
 #   Docker image   ghcr.io/vicoaritonang/guard-rails-engine, amd64 and arm64
 #   Python, npm    only when the PUBLISH_PYPI / PUBLISH_NPM repository variables
@@ -160,3 +161,27 @@ jobs:
       - name: Publish
         working-directory: sdks/js
         run: npm publish --provenance --access public
+
+  go-module:
+    name: go module
+    needs: verify
+    runs-on: ubuntu-latest
+    env:
+      MODULE: go.vicoworks.com/guard-rails-engine
+    steps:
+      # The module is published by the tag itself; this job checks that the
+      # vanity import path still points at this repository and asks the public
+      # Go proxy to fetch the new version, which is also what makes it appear
+      # on pkg.go.dev. Nothing here can change what was released.
+      - name: Check the vanity import path
+        run: |
+          meta="$(curl -fsSL "https://${MODULE}?go-get=1")"
+          echo "$meta" | grep -F "<meta name=\"go-import\" content=\"${MODULE} git https://github.com/${GITHUB_REPOSITORY}\"" \
+            || { echo "https://${MODULE}?go-get=1 does not point at github.com/${GITHUB_REPOSITORY}"; echo "$meta"; exit 1; }
+      - name: Ask proxy.golang.org to index ${{ github.ref_name }}
+        run: |
+          for _ in 1 2 3 4 5; do
+            curl -fsS "https://proxy.golang.org/${MODULE}/@v/${GITHUB_REF_NAME}.info" && exit 0
+            sleep 20
+          done
+          echo "the proxy did not return ${GITHUB_REF_NAME} yet; pkg.go.dev will pick it up on first use"

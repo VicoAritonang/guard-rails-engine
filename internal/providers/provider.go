@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/VicoAritonang/guard-rails-engine/internal/core"
+	"go.vicoworks.com/guard-rails-engine/internal/core"
 )
 
 // Request is a provider-neutral completion request.
@@ -91,10 +91,12 @@ func New(name string, opts Options) (Provider, error) {
 		return NewOpenAI(opts.OpenAI)
 	case "groq":
 		return NewGroq(opts.Groq)
+	case "local":
+		return NewLocal(opts.Local)
 	case "replay":
 		return NewReplay(opts.ReplayPath)
 	default:
-		return nil, fmt.Errorf("providers: unknown provider %q (want mock|openai|groq|anthropic|replay)", name)
+		return nil, fmt.Errorf("providers: unknown provider %q (want mock|openai|groq|anthropic|local|replay)", name)
 	}
 }
 
@@ -103,6 +105,7 @@ type Options struct {
 	Mock       MockOptions
 	OpenAI     OpenAIOptions
 	Groq       OpenAIOptions
+	Local      OpenAIOptions
 	Anthropic  AnthropicOptions
 	ReplayPath string
 }

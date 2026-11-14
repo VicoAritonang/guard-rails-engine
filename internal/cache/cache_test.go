@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/VicoAritonang/guard-rails-engine/internal/core"
+	"go.vicoworks.com/guard-rails-engine/internal/core"
 )
 
 func TestKeyPartitionsByTenant(t *testing.T) {

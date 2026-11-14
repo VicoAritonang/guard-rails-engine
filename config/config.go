@@ -46,6 +46,25 @@ type Config struct {
 	GroqAPIKey  string
 	GroqBaseURL string
 
+	// Local is any self-hosted OpenAI-compatible server (vLLM, Ollama, TGI,
+	// llama.cpp, NIM): where open-weight guard models run beside the gateway.
+	LocalAPIKey  string
+	LocalBaseURL string
+
+	// Media backends. MediaOCR is a catalog route (vision OCR through the
+	// router) or an http(s) URL (an OCR sidecar). MediaTranscribe is openai,
+	// groq, local, or the base URL of an OpenAI-compatible speech-to-text
+	// server. MediaImageClassifiers are "moderation" and/or catalog routes
+	// of a multimodal guard model (Llama Guard 4).
+	MediaOCR              string
+	MediaOCRToken         string
+	MediaTranscribe       string
+	MediaTranscribeModel  string
+	MediaTranscribeKey    string
+	MediaImageClassifiers []string
+	// MediaUploadBytes bounds a multipart upload to /v1/guard/media.
+	MediaUploadBytes int64
+
 	// ModelsPath points at the model catalog. When set, the gateway builds a
 	// router over every provider that has credentials, and Provider becomes
 	// the default for model names the catalog does not list.
@@ -67,6 +86,10 @@ type Config struct {
 	JudgeFailClosed    bool
 	JudgeEscalateAbove float64
 	JudgeCombine       string
+	// JudgeValidate runs the semantic tier on /v1/guard/{stage} as well as on
+	// the proxy, so a team using the SDKs gets the same coverage as one
+	// using the OpenAI-compatible endpoint.
+	JudgeValidate bool
 
 	// UpstreamMaxRetries is the SDK retry budget per upstream call: 0 keeps the
 	// SDK default (2), negative disables retries. Experiments disable them so
@@ -169,6 +192,17 @@ func FromEnv() (*Config, error) {
 		GroqAPIKey:  os.Getenv("GROQ_API_KEY"),
 		GroqBaseURL: os.Getenv("GROQ_BASE_URL"),
 
+		LocalAPIKey:  os.Getenv("LOCAL_API_KEY"),
+		LocalBaseURL: os.Getenv("LOCAL_BASE_URL"),
+
+		MediaOCR:              envStr("GUARDRAILS_MEDIA_OCR", ""),
+		MediaOCRToken:         os.Getenv("GUARDRAILS_MEDIA_OCR_TOKEN"),
+		MediaTranscribe:       envStr("GUARDRAILS_MEDIA_TRANSCRIBE", ""),
+		MediaTranscribeModel:  envStr("GUARDRAILS_MEDIA_TRANSCRIBE_MODEL", ""),
+		MediaTranscribeKey:    os.Getenv("GUARDRAILS_MEDIA_TRANSCRIBE_API_KEY"),
+		MediaImageClassifiers: envList("GUARDRAILS_MEDIA_IMAGE_CLASSIFIERS", ""),
+		MediaUploadBytes:      int64(envInt("GUARDRAILS_MEDIA_UPLOAD_BYTES", 32<<20)),
+
 		ModelsPath: envStr("GUARDRAILS_MODELS", ""),
 
 		CacheSize:              envInt("GUARDRAILS_CACHE_SIZE", 1000),
@@ -184,6 +218,7 @@ func FromEnv() (*Config, error) {
 		JudgeFailClosed:    envBool("GUARDRAILS_JUDGE_FAIL_CLOSED", false),
 		JudgeEscalateAbove: envFloat("GUARDRAILS_JUDGE_ESCALATE_ABOVE", 0.25),
 		JudgeCombine:       envStr("GUARDRAILS_JUDGE_COMBINE", "any"),
+		JudgeValidate:      envBool("GUARDRAILS_JUDGE_VALIDATE", true),
 
 		UpstreamMaxRetries: envInt("GUARDRAILS_UPSTREAM_MAX_RETRIES", 0),
 		OTLPEndpoint:       envStr("GUARDRAILS_OTLP_ENDPOINT", ""),
@@ -222,10 +257,13 @@ func FromEnv() (*Config, error) {
 	}
 
 	switch c.Provider {
-	case "mock", "openai", "groq", "anthropic", "replay":
+	case "mock", "openai", "groq", "anthropic", "local", "replay":
 	default:
 		return nil, fmt.Errorf(
-			"GUARDRAILS_PROVIDER %q must be mock, openai, groq, anthropic or replay", c.Provider)
+			"GUARDRAILS_PROVIDER %q must be mock, openai, groq, anthropic, local or replay", c.Provider)
+	}
+	if c.Provider == "local" && c.LocalBaseURL == "" {
+		return nil, fmt.Errorf("LOCAL_BASE_URL is required when the provider is local (e.g. http://ollama:11434/v1)")
 	}
 	switch c.JudgeMode {
 	case "off", "shadow", "cascade", "always":
@@ -241,12 +279,15 @@ func FromEnv() (*Config, error) {
 	if c.DefaultModel == "" {
 		c.DefaultModel = defaultModelFor(c.Provider)
 	}
+	if c.Provider == "local" && c.DefaultModel == "" {
+		return nil, fmt.Errorf("GUARDRAILS_DEFAULT_MODEL is required when the provider is local (the model id your server loaded)")
+	}
 
 	// Effort is spelled differently by the two providers and the vocabularies
 	// only partly overlap. Validating against the wrong one would either reject
 	// a legal value or forward an illegal one, so it is checked per provider.
 	switch c.Provider {
-	case "openai", "groq":
+	case "openai", "groq", "local":
 		switch c.Effort {
 		case "", "minimal", "low", "medium", "high":
 		default:
@@ -400,6 +441,8 @@ func defaultModelFor(provider string) string {
 		return "claude-opus-5"
 	case "groq":
 		return "openai/gpt-oss-20b"
+	case "local":
+		return "" // a local server serves whatever it loaded; there is no sensible guess
 	default:
 		return "mock-model"
 	}

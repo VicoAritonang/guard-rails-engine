@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/VicoAritonang/guard-rails-engine/internal/core"
+	"go.vicoworks.com/guard-rails-engine/internal/core"
 )
 
 // Mode decides when the semantic tier runs.
@@ -154,7 +154,7 @@ func HeuristicScore(d *core.Decision) float64 {
 	}
 	var best float64
 	for k, v := range d.Metrics {
-		if strings.HasPrefix(k, "injection.score.") && v > best {
+		if (strings.HasPrefix(k, "injection.score.") || strings.HasPrefix(k, "tool_result.injection.score.")) && v > best {
 			best = v
 		}
 	}
@@ -200,15 +200,26 @@ func (t *Tier) Evaluate(ctx context.Context, stage core.Stage, text string, d *c
 		t.decided(stage, out)
 		return out
 	}
+	var active []Classifier
+	for _, c := range t.opts.Classifiers {
+		if Supports(c, stage) {
+			active = append(active, c)
+		}
+	}
+	if len(active) == 0 {
+		out.Reason = "no_classifier_for_stage"
+		t.decided(stage, out)
+		return out
+	}
 	out.Ran = true
 	start := time.Now()
 
 	ctx, cancel := context.WithTimeout(ctx, t.opts.Timeout)
 	defer cancel()
 
-	verdicts := make([]Verdict, len(t.opts.Classifiers))
+	verdicts := make([]Verdict, len(active))
 	var wg sync.WaitGroup
-	for i, c := range t.opts.Classifiers {
+	for i, c := range active {
 		wg.Add(1)
 		go func(i int, c Classifier) {
 			defer wg.Done()
@@ -304,6 +315,33 @@ func UserText(msgs []core.Message) string {
 			b.WriteString("\n\n")
 		}
 		b.WriteString(m.Content)
+		// Attachments are user content too: a jailbreak in a PDF is still
+		// a jailbreak, and the classifiers read the text ingest extracted.
+		for _, p := range m.Parts {
+			if strings.TrimSpace(p.Text) == "" {
+				continue
+			}
+			b.WriteString("\n\n[" + p.Label() + "]\n")
+			b.WriteString(p.Text)
+		}
+	}
+	return b.String()
+}
+
+// ResultText joins tool-result text and attachment text for the tool-result
+// stage.
+func ResultText(results []core.ToolResult) string {
+	var b strings.Builder
+	for _, r := range results {
+		if b.Len() > 0 {
+			b.WriteString("\n\n")
+		}
+		b.WriteString(r.Content)
+		for _, p := range r.Parts {
+			if strings.TrimSpace(p.Text) != "" {
+				b.WriteString("\n\n[" + p.Label() + "]\n" + p.Text)
+			}
+		}
 	}
 	return b.String()
 }

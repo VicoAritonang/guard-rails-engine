@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/VicoAritonang/guard-rails-engine/internal/core"
-	"github.com/VicoAritonang/guard-rails-engine/internal/providers"
+	"go.vicoworks.com/guard-rails-engine/internal/core"
+	"go.vicoworks.com/guard-rails-engine/internal/providers"
 )
 
 // PIICase is a task that requires the model to reproduce a personal value.

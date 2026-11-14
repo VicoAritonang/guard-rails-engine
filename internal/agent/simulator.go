@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/VicoAritonang/guard-rails-engine/internal/core"
+	"go.vicoworks.com/guard-rails-engine/internal/core"
 )
 
 // Simulator is an Executor that produces plausible results without touching

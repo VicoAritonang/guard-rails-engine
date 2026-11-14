@@ -1,7 +1,41 @@
+/** How much of an attachment the guards actually read. */
+export interface Extraction {
+  methods?: string[];
+  coverage: "full" | "partial" | "none";
+  bytes?: number;
+  chars?: number;
+  pages?: number;
+  width?: number;
+  height?: number;
+  seconds?: number;
+  truncated?: boolean;
+  duration_ms: number;
+  findings?: Finding[];
+  warnings?: string[];
+  /** native | text | dropped: what went upstream. */
+  forwarded?: string;
+}
+
+/** An attachment: image, document, audio or video. */
+export interface Part {
+  type?: "text" | "image" | "audio" | "video" | "document";
+  mime?: string;
+  name?: string;
+  /** Base64 bytes. */
+  data?: string;
+  /** A data: URI, or a remote URL when the gateway allows fetching. */
+  url?: string;
+  format?: string;
+  /** The extracted (and possibly redacted) text, set by the gateway. */
+  text?: string;
+  extraction?: Extraction;
+}
+
 export interface Message {
   role: "system" | "user" | "assistant" | "tool" | (string & {});
   content: string;
   name?: string;
+  parts?: Part[];
 }
 
 export interface ToolCall {
@@ -18,6 +52,7 @@ export interface ToolResult {
   error?: string;
   /** Who could have written the content, such as "web" for a fetch tool. */
   origin?: string;
+  parts?: Part[];
 }
 
 export interface GuardRequest {
@@ -73,7 +108,24 @@ export interface GuardResult {
   session?: unknown;
   /** True when failOpen passed the payload through unchecked. */
   degraded: boolean;
+  /** The semantic-tier outcome, when model classifiers ran on this stage. */
+  semantic?: Record<string, unknown>;
+  /** The ingest report of every attachment. */
+  extractions?: Array<Extraction & { name: string; type: string }>;
 }
+
+export interface ScanFileOptions {
+  name?: string;
+  mime?: string;
+  /** inbound (default) or tool_result for retrieved content. */
+  stage?: "inbound" | "tool_result";
+  text?: string;
+  origin?: "tool" | "web";
+  tool?: string;
+  tenant?: string;
+}
+
+export function attachment(data: ArrayBuffer | Uint8Array, options?: { name?: string; mime?: string }): Part;
 
 export interface ClientOptions {
   apiKey?: string;
@@ -100,5 +152,7 @@ export class Client {
   runtime(request: GuardRequest): Promise<GuardResult>;
   toolResult(request: GuardRequest): Promise<GuardResult>;
   outbound(request: GuardRequest): Promise<GuardResult>;
+  scanFile(data: Blob | ArrayBuffer | Uint8Array, options?: ScanFileOptions): Promise<GuardResult>;
+  mediaInfo(): Promise<Record<string, unknown>>;
   health(): Promise<boolean>;
 }

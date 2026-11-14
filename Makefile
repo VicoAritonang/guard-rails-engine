@@ -4,7 +4,7 @@
 # locally it passes in CI, and that property is worth more than any individual
 # target here.
 
-MODULE  := github.com/VicoAritonang/guard-rails-engine
+MODULE  := go.vicoworks.com/guard-rails-engine
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -s -w -X main.version=$(VERSION)
 BUILD   := build

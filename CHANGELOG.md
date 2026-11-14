@@ -10,8 +10,10 @@ First public distribution.
 
 ### Breaking
 
-- The Go module path is now `github.com/VicoAritonang/guard-rails-engine`, matching
-  the repository. The old path could not be fetched with `go get`.
+- The Go module path is now `go.vicoworks.com/guard-rails-engine`, a vanity import
+  path served by a Cloudflare Worker (`deploy/cloudflare/go-vanity`) that points the
+  Go toolchain at the GitHub repository. Imports of `github.com/VicoAritonang/...`
+  must be rewritten; the source, issues, CI and images stay on GitHub.
 - Go 1.26 is the minimum version, required by the patched `golang.org/x/net`.
 - `GUARDRAILS_ADDR` defaults to `127.0.0.1:8080`. The Docker image still sets `:8080`.
 - The gateway refuses to start on a network address with provider credentials and
@@ -22,11 +24,30 @@ First public distribution.
 - The development compose stack publishes every port on loopback only, gives
   anonymous Grafana visitors the Viewer role instead of Admin, no longer ships a
   default `GUARDRAILS_SECRET`, and leaves `GUARDRAILS_EXPERIMENTS_RUN` off.
-- `tools`, tool turns, non-text content and `n > 1` on `/v1/chat/completions` now
-  return 400 with a clear message.
+- `tools`, tool turns, `file_id` references, unknown content parts and `n > 1` on
+  `/v1/chat/completions` now return 400 with a clear message. Image, audio and
+  inline file parts are scanned and accepted.
 
 ### Added
 
+- Multimodal ingest (`internal/media`): PDF, DOCX/XLSX/PPTX, ODF, HTML, SVG, RTF,
+  ZIP listings, image metadata, OCR (vision route or HTTP sidecar), speech-to-text
+  (OpenAI, Groq, local Whisper) and image safety (Llama Guard 4, omni-moderation).
+  New guards `media` and `media_result`; `POST /v1/guard/media` (multipart) and
+  `GET /v1/media`. Image, audio and file content parts are now accepted on
+  `/v1/chat/completions` and MCP image/audio/resource blocks are scanned.
+- Guard-model classifiers: Llama Guard 3/4, Qwen3Guard, Granite Guardian, Nemotron
+  safety, and `tei:` self-hosted sequence classifiers; `local` provider for vLLM/Ollama.
+- Tool-call alignment judging on the runtime stage; semantic tier on `/v1/guard/*`.
+- `custom_rules*` (keyword/regex rules in policy) and `url_filter*` guards.
+- Helm chart (`deploy/helm`) and a local-models compose overlay.
+- `pkg/guardrails`: `ExecuteTool` runs the application's own tools under the
+  tool control plane and records their effects (dry runs, approvals, idempotency,
+  taint); `Approve` mints single-use approvals; `Request.ApprovalToken`,
+  `IdempotencyKey`, `DryRun`; `Options.ToolCatalogFile`; `ScanFile`;
+  `DefaultPolicy`, `StrictPolicy`, `LoadPolicy`; pluggable OCR and speech backends.
+- `deploy/cloudflare/go-vanity`: the Worker serving the `go.vicoworks.com` import path.
+- `docs/go-library.md`: the guide to importing the engine from another Go project.
 - `pkg/guardrails`: a public Go library that runs the engine in process.
 - Python (`guard-rails-engine`) and JavaScript (`guard-rails-engine`) clients.
 - OpenAI compatibility on `/v1/chat/completions` and `/v1/models`: the `choices`

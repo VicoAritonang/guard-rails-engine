@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/VicoAritonang/guard-rails-engine/config"
-	"github.com/VicoAritonang/guard-rails-engine/internal/core"
-	"github.com/VicoAritonang/guard-rails-engine/internal/core/normalize"
+	"go.vicoworks.com/guard-rails-engine/config"
+	"go.vicoworks.com/guard-rails-engine/internal/core"
+	"go.vicoworks.com/guard-rails-engine/internal/core/normalize"
 )
 
 // Leak detects the operator's own secrets coming back out in the completion.

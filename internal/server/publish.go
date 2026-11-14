@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/VicoAritonang/guard-rails-engine/internal/core"
-	"github.com/VicoAritonang/guard-rails-engine/internal/judge"
+	"go.vicoworks.com/guard-rails-engine/internal/core"
+	"go.vicoworks.com/guard-rails-engine/internal/judge"
 )
 
 // decisionView is the console's projection of a stage decision: enough to
@@ -81,12 +81,48 @@ func preview(msgs []core.Message) string {
 	return ""
 }
 
+// attachmentView is what the console shows of an attachment: its kind and
+// how much of it the guards read. Never its name, bytes or text.
+type attachmentView struct {
+	Type     string   `json:"type"`
+	Format   string   `json:"format,omitempty"`
+	Coverage string   `json:"coverage,omitempty"`
+	Methods  []string `json:"methods,omitempty"`
+	Findings int      `json:"findings,omitempty"`
+	MS       int64    `json:"ms,omitempty"`
+}
+
+func attachmentsOf(msgs []core.Message, results []core.ToolResult) []attachmentView {
+	var out []attachmentView
+	add := func(p core.Part) {
+		v := attachmentView{Type: string(p.Type), Format: p.MIME}
+		if e := p.Extraction; e != nil {
+			v.Coverage, v.Methods, v.Findings, v.MS = string(e.Coverage), e.Methods, len(e.Findings), e.DurationMS
+		}
+		out = append(out, v)
+	}
+	for _, m := range msgs {
+		for _, p := range m.Parts {
+			add(p)
+		}
+	}
+	for _, r := range results {
+		for _, p := range r.Parts {
+			add(p)
+		}
+	}
+	return out
+}
+
 func (s *Server) publishDecision(kind string, tx *core.Transaction, d *core.Decision) {
 	if s.bus == nil {
 		return
 	}
-	s.bus.Publish(kind, map[string]any{"id": tx.ID, "tenant": tx.Tenant, "preview": preview(tx.Messages),
-		"decision": viewOf(d)})
+	ev := map[string]any{"id": tx.ID, "tenant": tx.Tenant, "preview": preview(tx.Messages), "decision": viewOf(d)}
+	if a := attachmentsOf(tx.Messages, tx.ToolResults); len(a) > 0 {
+		ev["attachments"] = a
+	}
+	s.bus.Publish(kind, ev)
 }
 
 // publishRequest emits one event per proxied request: the whole journey,
@@ -102,7 +138,7 @@ func (s *Server) publishRequest(id string, req *chatRequest, masked []core.Messa
 		"semantic": semanticView(meta.SemanticInbound), "semantic_out": semanticView(meta.SemanticOutbound),
 		"timing": meta.Timing, "redactions": meta.Redactions, "restored": meta.Restored,
 		"fallback": meta.Fallback, "attempts": meta.Attempts, "cost_usd": cost + meta.JudgeCostUSD,
-		"trace_id": meta.TraceID,
+		"trace_id": meta.TraceID, "attachments": attachmentsOf(masked, nil),
 	})
 }
 

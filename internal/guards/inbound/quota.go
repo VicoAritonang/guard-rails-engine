@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/VicoAritonang/guard-rails-engine/config"
-	"github.com/VicoAritonang/guard-rails-engine/internal/core"
-	"github.com/VicoAritonang/guard-rails-engine/internal/telemetry"
-	"github.com/VicoAritonang/guard-rails-engine/internal/tokenize"
+	"go.vicoworks.com/guard-rails-engine/config"
+	"go.vicoworks.com/guard-rails-engine/internal/core"
+	"go.vicoworks.com/guard-rails-engine/internal/telemetry"
+	"go.vicoworks.com/guard-rails-engine/internal/tokenize"
 )
 
 // Quota enforces the size and cost envelope of a single request.
@@ -64,6 +64,12 @@ func (g *Quota) Check(ctx context.Context, tx *core.Transaction) (core.Result, e
 			res.Findings = append(res.Findings, f)
 		}
 		contents = append(contents, m.Content)
+		// An attachment's extracted text is a lower bound on what the model
+		// will be billed for: providers tokenise a forwarded PDF at least as
+		// expensively as its text.
+		for _, p := range m.Parts {
+			contents = append(contents, p.Text)
+		}
 	}
 
 	if err := ctx.Err(); err != nil {

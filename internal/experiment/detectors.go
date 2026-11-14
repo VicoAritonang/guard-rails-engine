@@ -10,10 +10,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/VicoAritonang/guard-rails-engine/internal/core"
-	"github.com/VicoAritonang/guard-rails-engine/internal/eval"
-	"github.com/VicoAritonang/guard-rails-engine/internal/judge"
-	"github.com/VicoAritonang/guard-rails-engine/internal/providers"
+	"go.vicoworks.com/guard-rails-engine/internal/core"
+	"go.vicoworks.com/guard-rails-engine/internal/eval"
+	"go.vicoworks.com/guard-rails-engine/internal/judge"
+	"go.vicoworks.com/guard-rails-engine/internal/providers"
 )
 
 // DetectionCase is one labelled text.

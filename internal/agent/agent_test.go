@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/VicoAritonang/guard-rails-engine/internal/core"
+	"go.vicoworks.com/guard-rails-engine/internal/core"
 )
 
 const testSecret = "unit-test-approval-key-32-bytes!"

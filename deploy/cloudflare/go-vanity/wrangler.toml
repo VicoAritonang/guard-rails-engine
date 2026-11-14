@@ -1,0 +1,16 @@
+# Cloudflare Worker serving the go.vicoworks.com vanity import path.
+#
+#   cd deploy/cloudflare/go-vanity
+#   npx wrangler deploy
+#
+# The custom-domain route below creates the DNS record for go.vicoworks.com
+# automatically, provided vicoworks.com is a zone on the same Cloudflare
+# account. Do not also create a CNAME for it by hand.
+name = "go-vanity"
+main = "worker.js"
+compatibility_date = "2025-06-01"
+workers_dev = false
+
+routes = [
+  { pattern = "go.vicoworks.com", custom_domain = true },
+]

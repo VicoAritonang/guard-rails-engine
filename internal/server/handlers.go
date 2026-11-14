@@ -5,7 +5,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/VicoAritonang/guard-rails-engine/internal/core"
+	"go.vicoworks.com/guard-rails-engine/internal/core"
+	"go.vicoworks.com/guard-rails-engine/internal/judge"
 )
 
 // guardRequest is the validate-mode payload.
@@ -62,6 +63,10 @@ type guardResponse struct {
 	// masked anything. The gateway keeps no copy, so the caller holds it until
 	// the outbound call.
 	VaultToken string `json:"vault_token,omitempty"`
+
+	// Semantic is the model-classifier outcome, when the semantic tier covers
+	// this stage (GUARDRAILS_JUDGE_STAGES) and GUARDRAILS_JUDGE_VALIDATE is on.
+	Semantic *judge.Outcome `json:"semantic,omitempty"`
 }
 
 func (s *Server) handleGuard(w http.ResponseWriter, r *http.Request) {
@@ -81,17 +86,22 @@ func (s *Server) handleGuard(w http.ResponseWriter, r *http.Request) {
 	}
 	if !stage.Valid() {
 		writeError(w, http.StatusBadRequest, "invalid_request",
-			"stage must be inbound, runtime or outbound")
+			"stage must be inbound, runtime, tool_result or outbound")
 		return
 	}
+	s.runGuard(w, r, stage, &req)
+}
 
+// runGuard executes one validate-mode stage and writes the response. Both the
+// JSON route and the multipart upload route end here.
+func (s *Server) runGuard(w http.ResponseWriter, r *http.Request, stage core.Stage, req *guardRequest) {
 	pipe, err := s.opts.Engine.Pipeline(stage)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_request", err.Error())
 		return
 	}
 
-	tx := s.transaction(&req, stage)
+	tx := s.transaction(req, stage)
 	if req.VaultToken != "" {
 		if err := tx.Vault.Unseal(req.VaultToken); err != nil {
 			writeError(w, http.StatusBadRequest, "invalid_request", err.Error())
@@ -99,6 +109,7 @@ func (s *Server) handleGuard(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	dec, _ := pipe.Execute(r.Context(), tx)
+	semantic := s.validateSemantic(r.Context(), stage, tx, dec)
 	s.opts.Auditor.Record(r.Context(), tx, dec)
 	s.publishDecision("guard."+string(stage), tx, dec)
 
@@ -106,14 +117,15 @@ func (s *Server) handleGuard(w http.ResponseWriter, r *http.Request) {
 		Decision: dec,
 		Blocked:  dec.Blocked(),
 		System:   tx.System,
-		Messages: tx.Messages,
+		Messages: withoutData(tx.Messages),
 		Session:  tx.Session,
+		Semantic: semantic,
 	}
 	switch stage {
 	case core.StageOutbound:
 		resp.Completion = tx.Completion
 	case core.StageToolResult:
-		resp.ToolResults = tx.ToolResults
+		resp.ToolResults = resultsWithoutData(tx.ToolResults)
 	}
 	if dec.Blocked() {
 		resp.Reason = dec.Reason()

@@ -2,16 +2,18 @@ package providers
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
 	"github.com/openai/openai-go/v3/shared"
 
-	"github.com/VicoAritonang/guard-rails-engine/internal/core"
+	"go.vicoworks.com/guard-rails-engine/internal/core"
 )
 
 // OpenAIOptions configures the upstream client.
@@ -246,6 +248,8 @@ func (a *OpenAI) params(req Request) (openai.ChatCompletionNewParams, error) {
 			msgs = append(msgs, openai.AssistantMessage(m.Content))
 		case m.Role == core.RoleSystem:
 			msgs = append(msgs, openai.SystemMessage(m.Content))
+		case len(m.Parts) > 0:
+			msgs = append(msgs, openai.UserMessage(openAIParts(m)))
 		default:
 			// Tool results ride as user content; the runtime stage has already
 			// inspected the calls that produced them.
@@ -289,6 +293,46 @@ func (a *OpenAI) params(req Request) (openai.ChatCompletionNewParams, error) {
 		params.ReasoningEffort = shared.ReasoningEffort(effort)
 	}
 	return params, nil
+}
+
+// openAIParts renders a turn with attachments as Chat Completions content
+// parts. Images go as image_url (inline data URI), PDFs and other files as
+// file parts, wav/mp3 as input_audio. Anything the API has no part type for
+// -- video, a .docx, an audio container other than wav/mp3 -- goes as the text
+// the gateway extracted from it, so the model still sees what the guards saw.
+func openAIParts(m core.Message) []openai.ChatCompletionContentPartUnionParam {
+	var parts []openai.ChatCompletionContentPartUnionParam
+	if strings.TrimSpace(m.Content) != "" {
+		parts = append(parts, openai.TextContentPart(m.Content))
+	}
+	for _, p := range m.Parts {
+		switch {
+		case p.Type == core.ModalityText:
+			parts = append(parts, openai.TextContentPart(p.Text))
+		case p.Type == core.ModalityImage && (len(p.Data) > 0 || p.URL != "") && p.MIME != "image/svg+xml":
+			u := p.URL
+			if len(p.Data) > 0 {
+				u = p.DataURI()
+			}
+			parts = append(parts, openai.ImageContentPart(openai.ChatCompletionContentPartImageImageURLParam{URL: u, Detail: p.Detail}))
+		case p.Type == core.ModalityAudio && len(p.Data) > 0 && (p.Format == "wav" || p.Format == "mp3"):
+			parts = append(parts, openai.InputAudioContentPart(openai.ChatCompletionContentPartInputAudioInputAudioParam{
+				Data: base64.StdEncoding.EncodeToString(p.Data), Format: p.Format}))
+		case p.Type == core.ModalityDocument && len(p.Data) > 0 && p.MIME == "application/pdf":
+			name := p.Name
+			if name == "" {
+				name = "document.pdf"
+			}
+			parts = append(parts, openai.FileContentPart(openai.ChatCompletionContentPartFileFileParam{
+				FileData: openai.String(p.DataURI()), Filename: openai.String(name)}))
+		default:
+			parts = append(parts, openai.TextContentPart(p.AsText().Text))
+		}
+	}
+	if len(parts) == 0 {
+		parts = append(parts, openai.TextContentPart(""))
+	}
+	return parts
 }
 
 // classifyOpenAIError maps an upstream failure onto a status the gateway can

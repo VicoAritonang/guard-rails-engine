@@ -16,15 +16,15 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 
-	"github.com/VicoAritonang/guard-rails-engine/config"
-	"github.com/VicoAritonang/guard-rails-engine/internal/core"
-	"github.com/VicoAritonang/guard-rails-engine/internal/experiment"
-	"github.com/VicoAritonang/guard-rails-engine/internal/gateway"
-	"github.com/VicoAritonang/guard-rails-engine/internal/guards"
-	"github.com/VicoAritonang/guard-rails-engine/internal/guards/runtime"
-	"github.com/VicoAritonang/guard-rails-engine/internal/mcp"
-	"github.com/VicoAritonang/guard-rails-engine/internal/server"
-	"github.com/VicoAritonang/guard-rails-engine/internal/telemetry"
+	"go.vicoworks.com/guard-rails-engine/config"
+	"go.vicoworks.com/guard-rails-engine/internal/core"
+	"go.vicoworks.com/guard-rails-engine/internal/experiment"
+	"go.vicoworks.com/guard-rails-engine/internal/gateway"
+	"go.vicoworks.com/guard-rails-engine/internal/guards"
+	"go.vicoworks.com/guard-rails-engine/internal/guards/runtime"
+	"go.vicoworks.com/guard-rails-engine/internal/mcp"
+	"go.vicoworks.com/guard-rails-engine/internal/server"
+	"go.vicoworks.com/guard-rails-engine/internal/telemetry"
 )
 
 var version = "dev" // set via -ldflags at build time
@@ -117,8 +117,16 @@ func run() error {
 		tracer = telemetry.NewTracer("guardrails-engine")
 	}
 
+	// The router is built before the engine: the media ingest step reads
+	// images and scanned pages through it (vision OCR, Llama Guard 4).
+	router, err := gateway.BuildRouter(cfg, logger, metrics)
+	if err != nil {
+		return err
+	}
+	mediaBackends := gateway.BuildMedia(cfg, router, pricing, logger)
+
 	engine, err := guards.Build(pol,
-		guards.Deps{Secret: cfg.Secret, Pricing: pricing},
+		guards.Deps{Secret: cfg.Secret, Pricing: pricing, Media: mediaBackends},
 		core.WithObserver(metrics),
 		core.WithTracer(tracer),
 	)
@@ -145,10 +153,6 @@ func run() error {
 		}
 	}
 
-	router, err := gateway.BuildRouter(cfg, logger, metrics)
-	if err != nil {
-		return err
-	}
 	warnMissingKey(cfg, logger)
 	exact, semantic := gateway.BuildCaches(cfg, logger)
 	tier, err := gateway.BuildTier(cfg, router, pricing, gateway.JudgeObserver{Metrics: metrics, Logger: logger}, logger)
@@ -210,28 +214,30 @@ func run() error {
 	}
 
 	srv, err := server.New(server.Options{
-		Engine:          engine,
-		Policy:          pol,
-		Provider:        router,
-		Router:          router,
-		Exact:           exact,
-		Semantic:        semantic,
-		Tier:            tier,
-		MCP:             mcpGW,
-		Bus:             bus,
-		ExperimentsDir:  cfg.ExperimentsDir,
-		Lab:             lab,
-		Pricing:         pricing,
-		Metrics:         metrics,
-		Auditor:         auditor,
-		Logger:          logger,
-		Secret:          cfg.Secret,
-		APIKeys:         cfg.APIKeys,
-		AdminKeys:       cfg.AdminKeys,
-		RequestTimeout:  cfg.RequestTimeout,
-		MaxBodyBytes:    cfg.MaxBodyBytes,
-		EnableDashboard: cfg.Dashboard,
-		Version:         version,
+		Engine:           engine,
+		Policy:           pol,
+		Provider:         router,
+		Router:           router,
+		Exact:            exact,
+		Semantic:         semantic,
+		Tier:             tier,
+		JudgeValidate:    cfg.JudgeValidate,
+		MediaUploadBytes: cfg.MediaUploadBytes,
+		MCP:              mcpGW,
+		Bus:              bus,
+		ExperimentsDir:   cfg.ExperimentsDir,
+		Lab:              lab,
+		Pricing:          pricing,
+		Metrics:          metrics,
+		Auditor:          auditor,
+		Logger:           logger,
+		Secret:           cfg.Secret,
+		APIKeys:          cfg.APIKeys,
+		AdminKeys:        cfg.AdminKeys,
+		RequestTimeout:   cfg.RequestTimeout,
+		MaxBodyBytes:     cfg.MaxBodyBytes,
+		EnableDashboard:  cfg.Dashboard,
+		Version:          version,
 	})
 	if err != nil {
 		return err

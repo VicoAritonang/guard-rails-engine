@@ -12,12 +12,12 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/VicoAritonang/guard-rails-engine/config"
-	"github.com/VicoAritonang/guard-rails-engine/internal/cache"
-	"github.com/VicoAritonang/guard-rails-engine/internal/core"
-	"github.com/VicoAritonang/guard-rails-engine/internal/judge"
-	"github.com/VicoAritonang/guard-rails-engine/internal/providers"
-	"github.com/VicoAritonang/guard-rails-engine/internal/telemetry"
+	"go.vicoworks.com/guard-rails-engine/config"
+	"go.vicoworks.com/guard-rails-engine/internal/cache"
+	"go.vicoworks.com/guard-rails-engine/internal/core"
+	"go.vicoworks.com/guard-rails-engine/internal/judge"
+	"go.vicoworks.com/guard-rails-engine/internal/providers"
+	"go.vicoworks.com/guard-rails-engine/internal/telemetry"
 )
 
 // Upstream bundles everything on the provider side of the gateway.
@@ -48,6 +48,9 @@ func BuildRouter(cfg *config.Config, logger *slog.Logger, obs providers.Upstream
 	}
 	if cfg.AnthropicAPIKey != "" {
 		want["anthropic"] = true
+	}
+	if cfg.LocalBaseURL != "" {
+		want["local"] = true
 	}
 	if cfg.ReplayPath != "" {
 		want["replay"] = true
@@ -121,6 +124,11 @@ func providerOptions(cfg *config.Config) providers.Options {
 			DefaultModel: model("groq"), Timeout: cfg.RequestTimeout,
 			ReasoningEffort: effort("groq"), MaxRetries: cfg.UpstreamMaxRetries,
 		},
+		Local: providers.OpenAIOptions{
+			APIKey: cfg.LocalAPIKey, BaseURL: cfg.LocalBaseURL,
+			DefaultModel: model("local"), Timeout: cfg.RequestTimeout,
+			ReasoningEffort: effort("local"), MaxRetries: cfg.UpstreamMaxRetries,
+		},
 		Anthropic: providers.AnthropicOptions{
 			APIKey: cfg.AnthropicAPIKey, BaseURL: cfg.AnthropicBaseURL,
 			DefaultModel: model("anthropic"), DefaultMaxTokens: cfg.DefaultMaxTokens,
@@ -144,14 +152,30 @@ func BuildClassifier(name string, r *providers.Router, cfg *config.Config, prici
 		}
 		return &judge.ModerationClassifier{Client: m}, nil
 	}
+	if strings.HasPrefix(name, "tei:") {
+		return judge.ParseHTTPClassifier(name)
+	}
+	if r == nil {
+		return nil, fmt.Errorf("classifier %s needs an upstream router", name)
+	}
 	chain, err := r.Resolve(name)
 	if err != nil {
 		return nil, err
 	}
-	if strings.Contains(chain[0].Model, "prompt-guard") {
-		return &judge.PromptGuard{Router: r, Route: name, Threshold: 0.5, Pricing: pricing, WindowChars: 1500}, nil
+	format := chain[0].Guard
+	if format == "" {
+		format = judge.DetectFormat(chain[0].Model)
 	}
-	return &judge.PolicyJudge{Router: r, Route: name, Pricing: pricing}, nil
+	switch format {
+	case judge.FormatPromptGuard:
+		return &judge.PromptGuard{Router: r, Route: name, Threshold: 0.5, Pricing: pricing, WindowChars: 1500}, nil
+	case judge.FormatLlamaGuard, judge.FormatQwen3Guard, judge.FormatGraniteGuardian, judge.FormatNemotron:
+		return &judge.GuardModel{Router: r, Route: name, Format: format, Pricing: pricing,
+			Risk: chain[0].Risk, ControversialUnsafe: true}, nil
+	case judge.FormatPolicy:
+		return &judge.PolicyJudge{Router: r, Route: name, Pricing: pricing}, nil
+	}
+	return nil, fmt.Errorf("classifier %s: unknown guard format %q", name, format)
 }
 
 // BuildTier constructs the semantic tier from configuration.
@@ -178,8 +202,8 @@ func BuildTier(cfg *config.Config, r *providers.Router, pricing *telemetry.Prici
 	var stages []core.Stage
 	for _, s := range cfg.JudgeStages {
 		st := core.Stage(s)
-		if st != core.StageInbound && st != core.StageOutbound {
-			return nil, fmt.Errorf("GUARDRAILS_JUDGE_STAGES: %q must be inbound or outbound", s)
+		if !st.Valid() {
+			return nil, fmt.Errorf("GUARDRAILS_JUDGE_STAGES: %q must be inbound, runtime, tool_result or outbound", s)
 		}
 		stages = append(stages, st)
 	}

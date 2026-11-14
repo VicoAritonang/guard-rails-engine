@@ -16,8 +16,8 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/VicoAritonang/guard-rails-engine/internal/agent"
-	"github.com/VicoAritonang/guard-rails-engine/internal/core"
+	"go.vicoworks.com/guard-rails-engine/internal/agent"
+	"go.vicoworks.com/guard-rails-engine/internal/core"
 )
 
 // Grade is the operator's risk grading of one upstream tool. It is the only
@@ -494,7 +494,7 @@ func (g *Gateway) Execute(ctx context.Context, t *agent.Tool, args map[string]an
 	if !g.trust[e.server] {
 		origin = core.OriginWeb
 	}
-	out := core.ToolResult{Name: t.Name, Content: res.Text(), Origin: origin, Sensitive: e.grade.Private}
+	out := core.ToolResult{Name: t.Name, Content: res.Text(), Origin: origin, Sensitive: e.grade.Private, Parts: res.Parts()}
 	if res.IsError {
 		out.Error = "upstream reported an error"
 	}
@@ -676,6 +676,17 @@ func (g *Gateway) Call(ctx context.Context, state *core.SessionState, name strin
 	}
 	out.Status = "executed"
 	out.Result = tx.ToolResults[0].Content
+	// Attachments reach the agent as the text the ingest step extracted and
+	// the result rails passed (redactions included), never as raw bytes the
+	// rails could not see into.
+	for _, p := range tx.ToolResults[0].Parts {
+		if t := p.AsText().Text; t != "" {
+			if out.Result != "" {
+				out.Result += "\n\n"
+			}
+			out.Result += t
+		}
+	}
 	if meta.Vault != nil {
 		out.Result, _ = meta.Vault.MaskKnown(out.Result)
 	}

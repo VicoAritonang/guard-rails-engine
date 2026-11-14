@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/VicoAritonang/guard-rails-engine/internal/agent"
+	"go.vicoworks.com/guard-rails-engine/internal/agent"
 )
 
 // runTools prints the tool risk matrix.

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/VicoAritonang/guard-rails-engine/internal/core"
+	"go.vicoworks.com/guard-rails-engine/internal/core"
 )
 
 // Request is one proposed tool call, with everything the controls need to

@@ -28,14 +28,14 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/VicoAritonang/guard-rails-engine/config"
-	"github.com/VicoAritonang/guard-rails-engine/internal/agent"
-	"github.com/VicoAritonang/guard-rails-engine/internal/cache"
-	"github.com/VicoAritonang/guard-rails-engine/internal/guards"
-	"github.com/VicoAritonang/guard-rails-engine/internal/judge"
-	"github.com/VicoAritonang/guard-rails-engine/internal/mcp"
-	"github.com/VicoAritonang/guard-rails-engine/internal/providers"
-	"github.com/VicoAritonang/guard-rails-engine/internal/telemetry"
+	"go.vicoworks.com/guard-rails-engine/config"
+	"go.vicoworks.com/guard-rails-engine/internal/agent"
+	"go.vicoworks.com/guard-rails-engine/internal/cache"
+	"go.vicoworks.com/guard-rails-engine/internal/guards"
+	"go.vicoworks.com/guard-rails-engine/internal/judge"
+	"go.vicoworks.com/guard-rails-engine/internal/mcp"
+	"go.vicoworks.com/guard-rails-engine/internal/providers"
+	"go.vicoworks.com/guard-rails-engine/internal/telemetry"
 )
 
 // Options configures the HTTP surface.
@@ -79,6 +79,10 @@ type Options struct {
 	Semantic *cache.Semantic
 	// Tier is the semantic (model-based) classifier tier; nil means off.
 	Tier *judge.Tier
+	// JudgeValidate runs the tier on /v1/guard/{stage} too.
+	JudgeValidate bool
+	// MediaUploadBytes bounds a multipart upload to /v1/guard/media.
+	MediaUploadBytes int64
 
 	// MCP is the guarded MCP gateway; nil when no MCP config is loaded. It
 	// also powers /v1/agent/run, the gateway's own function-calling agent.
@@ -186,6 +190,10 @@ func (s *Server) routes() {
 	}
 	s.mux.Handle("GET /metrics", promhttp.HandlerFor(registry, promhttp.HandlerOpts{}))
 
+	// The literal route wins over the pattern, so "media" is never read as a
+	// stage name.
+	s.mux.Handle("POST /v1/guard/media", s.protect(http.HandlerFunc(s.handleMediaUpload)))
+	s.mux.Handle("GET /v1/media", s.protect(http.HandlerFunc(s.handleMediaInfo)))
 	s.mux.Handle("POST /v1/guard/{stage}", s.protect(http.HandlerFunc(s.handleGuard)))
 	s.mux.Handle("POST /v1/chat/completions", s.protect(http.HandlerFunc(s.handleChat)))
 	s.mux.Handle("GET /v1/policy", s.protect(http.HandlerFunc(s.handlePolicy)))
@@ -346,7 +354,7 @@ func (s *Server) withRequestID(next http.Handler) http.Handler {
 // response header so a caller holding a surprising response can jump straight
 // to its trace.
 func (s *Server) withTracing(next http.Handler) http.Handler {
-	tr := otel.Tracer("github.com/VicoAritonang/guard-rails-engine/server")
+	tr := otel.Tracer("go.vicoworks.com/guard-rails-engine/server")
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/healthz", "/readyz", "/metrics":
@@ -513,7 +521,13 @@ func (s *Server) gate(keys map[string]struct{}, next http.Handler) http.Handler 
 			writeError(w, http.StatusTooManyRequests, "rate_limited", "too many requests")
 			return
 		}
-		r.Body = http.MaxBytesReader(w, r.Body, s.opts.MaxBodyBytes)
+		limit := s.opts.MaxBodyBytes
+		if r.URL.Path == "/v1/guard/media" && s.opts.MediaUploadBytes > limit {
+			// File uploads have their own, larger bound (enforced again in
+			// the handler); every JSON route keeps the tight one.
+			limit = s.opts.MediaUploadBytes
+		}
+		r.Body = http.MaxBytesReader(w, r.Body, limit)
 		next.ServeHTTP(w, r)
 	})
 }

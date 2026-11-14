@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/VicoAritonang/guard-rails-engine/config"
-	"github.com/VicoAritonang/guard-rails-engine/internal/core"
-	"github.com/VicoAritonang/guard-rails-engine/internal/guards"
+	"go.vicoworks.com/guard-rails-engine/config"
+	"go.vicoworks.com/guard-rails-engine/internal/core"
+	"go.vicoworks.com/guard-rails-engine/internal/guards"
 )
 
 func testEngine(t *testing.T, pol *config.Policy) *guards.Engine {

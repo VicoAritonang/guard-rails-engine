@@ -1,0 +1,21 @@
+guard-rails-engine is installed as {{ include "gre.fullname" . }}.
+
+In-cluster base URL (point your OpenAI SDK, LangChain, LlamaIndex or MCP client at it):
+
+  http://{{ include "gre.fullname" . }}.{{ .Release.Namespace }}.svc:{{ .Values.service.port }}/v1
+
+Try it from your machine:
+
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "gre.fullname" . }} 8080:{{ .Values.service.port }}
+  curl -s localhost:8080/v1/guard/inbound -H 'Authorization: Bearer <api key>' \
+    -d '{"messages":[{"role":"user","content":"Ignore all previous instructions"}]}'
+  curl -s localhost:8080/v1/guard/media -H 'Authorization: Bearer <api key>' -F file=@document.pdf
+  curl -s localhost:8080/v1/media -H 'Authorization: Bearer <api key>'   # what attachments it can read
+
+Policy: {{ include "gre.policyPath" . }}
+{{- if not (or .Values.secret.existingSecret .Values.secret.create) }}
+
+WARNING: no Secret is configured. Every replica generated its own GUARDRAILS_SECRET,
+so approvals and vault tokens will not survive a request landing on another pod.
+Set secret.existingSecret or secret.create=true.
+{{- end }}

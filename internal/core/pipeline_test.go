@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/VicoAritonang/guard-rails-engine/config"
+	"go.vicoworks.com/guard-rails-engine/config"
 )
 
 // TestApplyMutations covers the ordering and overlap rules that make redaction

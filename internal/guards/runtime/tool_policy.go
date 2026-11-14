@@ -8,8 +8,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/VicoAritonang/guard-rails-engine/config"
-	"github.com/VicoAritonang/guard-rails-engine/internal/core"
+	"go.vicoworks.com/guard-rails-engine/config"
+	"go.vicoworks.com/guard-rails-engine/internal/core"
 )
 
 // ToolPolicy decides whether a proposed tool call is allowed to execute.

@@ -11,11 +11,11 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/VicoAritonang/guard-rails-engine/internal/cache"
-	"github.com/VicoAritonang/guard-rails-engine/internal/core"
-	"github.com/VicoAritonang/guard-rails-engine/internal/judge"
-	"github.com/VicoAritonang/guard-rails-engine/internal/providers"
-	"github.com/VicoAritonang/guard-rails-engine/internal/telemetry"
+	"go.vicoworks.com/guard-rails-engine/internal/cache"
+	"go.vicoworks.com/guard-rails-engine/internal/core"
+	"go.vicoworks.com/guard-rails-engine/internal/judge"
+	"go.vicoworks.com/guard-rails-engine/internal/providers"
+	"go.vicoworks.com/guard-rails-engine/internal/telemetry"
 )
 
 // chatRequest is the proxy's view of a request, after decodeChat has read the
@@ -111,7 +111,7 @@ type timing struct {
 	TotalMS    int64 `json:"total_ms"`
 }
 
-var proxyTracer = otel.Tracer("github.com/VicoAritonang/guard-rails-engine/server")
+var proxyTracer = otel.Tracer("go.vicoworks.com/guard-rails-engine/server")
 
 func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 	if s.opts.Provider == nil {

@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/VicoAritonang/guard-rails-engine/config"
+	"go.vicoworks.com/guard-rails-engine/config"
 )
 
 // Result is what a guard returns. Guards never mutate the transaction
@@ -73,6 +73,7 @@ type Pipeline struct {
 	policy   *config.Policy
 	observer Observer
 	tracer   Tracer
+	ingestor Ingestor
 }
 
 // PipelineOption configures a Pipeline.
@@ -159,15 +160,27 @@ func (p *Pipeline) Execute(ctx context.Context, tx *Transaction) (*Decision, err
 		"guardrails.model":  tx.Model,
 	})
 
-	stageCtx, cancel := context.WithTimeout(ctx, p.policy.Budget(string(p.stage)))
-	defer cancel()
-
 	dec := &Decision{
 		TransactionID: tx.ID,
 		Stage:         p.stage,
 		Action:        ActionAllow,
 		PolicyVersion: p.policy.Version,
 	}
+
+	// Ingest runs before the stage budget starts. Extracting a 40-page PDF or
+	// transcribing a voice note cannot fit in 50 ms and should not have to:
+	// the budget bounds the guards, and the ingest step has its own deadline.
+	hasParts := p.ingestor != nil && tx.HasParts()
+	if hasParts {
+		ingestStart := time.Now()
+		if err := p.ingestor.Prepare(ctx, tx); err != nil {
+			dec.Degraded = true
+		}
+		dec.Metrics = map[string]float64{"media.ingest_ms": float64(time.Since(ingestStart).Microseconds()) / 1000}
+	}
+
+	stageCtx, cancel := context.WithTimeout(ctx, p.policy.Budget(string(p.stage)))
+	defer cancel()
 
 	results := make([]Result, len(p.guards))
 	runs := make([]GuardRun, len(p.guards))
@@ -220,6 +233,9 @@ func (p *Pipeline) Execute(ctx context.Context, tx *Transaction) (*Decision, err
 	if dec.Action == ActionRedact && len(dec.Mutations) > 0 {
 		applied := ApplyMutations(tx, dec.Mutations)
 		dec.Mutations = applied
+	}
+	if hasParts {
+		p.ingestor.Finalize(tx, dec)
 	}
 
 	sortFindings(dec.Findings)

@@ -10,14 +10,16 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/VicoAritonang/guard-rails-engine/config"
-	"github.com/VicoAritonang/guard-rails-engine/internal/agent"
-	"github.com/VicoAritonang/guard-rails-engine/internal/core"
-	"github.com/VicoAritonang/guard-rails-engine/internal/guards/inbound"
-	"github.com/VicoAritonang/guard-rails-engine/internal/guards/outbound"
-	"github.com/VicoAritonang/guard-rails-engine/internal/guards/runtime"
-	"github.com/VicoAritonang/guard-rails-engine/internal/guards/toolresult"
-	"github.com/VicoAritonang/guard-rails-engine/internal/telemetry"
+	"go.vicoworks.com/guard-rails-engine/config"
+	"go.vicoworks.com/guard-rails-engine/internal/agent"
+	"go.vicoworks.com/guard-rails-engine/internal/core"
+	"go.vicoworks.com/guard-rails-engine/internal/guards/inbound"
+	"go.vicoworks.com/guard-rails-engine/internal/guards/outbound"
+	"go.vicoworks.com/guard-rails-engine/internal/guards/rules"
+	"go.vicoworks.com/guard-rails-engine/internal/guards/runtime"
+	"go.vicoworks.com/guard-rails-engine/internal/guards/toolresult"
+	"go.vicoworks.com/guard-rails-engine/internal/media"
+	"go.vicoworks.com/guard-rails-engine/internal/telemetry"
 )
 
 // Deps are the collaborators guards need beyond their own config.
@@ -27,6 +29,10 @@ type Deps struct {
 	// produces two different placeholders.
 	Secret  []byte
 	Pricing *telemetry.Pricing
+	// Media are the model-backed readers for attachments (OCR, speech to
+	// text, image safety). All optional: without them documents and image
+	// metadata are still read, and what cannot be read is reported.
+	Media media.Backends
 }
 
 // factory builds one guard from its config.
@@ -78,6 +84,27 @@ var factories = map[string]factory{
 	config.GuardRestore: func(c *config.GuardConfig, _ Deps) (core.Guard, error) {
 		return outbound.NewRestore(c)
 	},
+	config.GuardMedia: func(*config.GuardConfig, Deps) (core.Guard, error) {
+		return media.NewGuard(core.StageInbound), nil
+	},
+	config.GuardMediaResult: func(*config.GuardConfig, Deps) (core.Guard, error) {
+		return media.NewGuard(core.StageToolResult), nil
+	},
+	config.GuardCustomRules: func(c *config.GuardConfig, _ Deps) (core.Guard, error) {
+		return rules.New(config.GuardCustomRules, core.StageInbound, c)
+	},
+	config.GuardCustomRulesOutbound: func(c *config.GuardConfig, _ Deps) (core.Guard, error) {
+		return rules.New(config.GuardCustomRulesOutbound, core.StageOutbound, c)
+	},
+	config.GuardCustomRulesToolResult: func(c *config.GuardConfig, _ Deps) (core.Guard, error) {
+		return rules.New(config.GuardCustomRulesToolResult, core.StageToolResult, c)
+	},
+	config.GuardURLFilter: func(c *config.GuardConfig, _ Deps) (core.Guard, error) {
+		return rules.NewURLFilter(config.GuardURLFilter, core.StageInbound, c)
+	},
+	config.GuardURLFilterOutbound: func(c *config.GuardConfig, _ Deps) (core.Guard, error) {
+		return rules.NewURLFilter(config.GuardURLFilterOutbound, core.StageOutbound, c)
+	},
 }
 
 // Engine holds the four stage pipelines.
@@ -95,6 +122,8 @@ type Engine struct {
 	// and the divergence would be an endpoint that permits what the pipeline
 	// refuses.
 	toolSafety *runtime.ToolSafety
+
+	media *media.Processor
 }
 
 // Build constructs every enabled guard and assembles the stage pipelines.
@@ -144,15 +173,24 @@ func Build(pol *config.Policy, deps Deps, opts ...core.PipelineOption) (*Engine,
 		}
 	}
 
-	e := &Engine{policy: pol, toolSafety: toolSafety}
-	var err error
-	if e.Inbound, err = core.NewPipeline(core.StageInbound, byStage[core.StageInbound], pol, opts...); err != nil {
+	// The ingest step is installed whether or not the media guards are
+	// enabled. Disabling them silences the file-specific findings; it must not
+	// turn a PDF into something the injection guard never reads.
+	mopts, err := media.OptionsFromPolicy(pol.Guard(config.GuardMedia))
+	if err != nil {
+		return nil, fmt.Errorf("guards: %w", err)
+	}
+	proc := media.New(mopts, deps.Media)
+	withIngest := append(append([]core.PipelineOption{}, opts...), core.WithIngestor(proc))
+
+	e := &Engine{policy: pol, toolSafety: toolSafety, media: proc}
+	if e.Inbound, err = core.NewPipeline(core.StageInbound, byStage[core.StageInbound], pol, withIngest...); err != nil {
 		return nil, err
 	}
 	if e.Runtime, err = core.NewPipeline(core.StageRuntime, byStage[core.StageRuntime], pol, opts...); err != nil {
 		return nil, err
 	}
-	if e.ToolResult, err = core.NewPipeline(core.StageToolResult, byStage[core.StageToolResult], pol, opts...); err != nil {
+	if e.ToolResult, err = core.NewPipeline(core.StageToolResult, byStage[core.StageToolResult], pol, withIngest...); err != nil {
 		return nil, err
 	}
 	if e.Outbound, err = core.NewPipeline(core.StageOutbound, byStage[core.StageOutbound], pol, opts...); err != nil {
@@ -178,6 +216,9 @@ func (e *Engine) Pipeline(s core.Stage) (*core.Pipeline, error) {
 
 // Policy exposes the effective policy for introspection endpoints.
 func (e *Engine) Policy() *config.Policy { return e.policy }
+
+// Media exposes the ingest processor, for capability reporting.
+func (e *Engine) Media() *media.Processor { return e.media }
 
 // ToolEvaluator returns the tool-safety evaluator, or nil when the guard is
 // disabled. The agent broker is built from this rather than from a second read

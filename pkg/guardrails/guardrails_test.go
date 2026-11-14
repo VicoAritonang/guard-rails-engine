@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/VicoAritonang/guard-rails-engine/pkg/guardrails"
+	"go.vicoworks.com/guard-rails-engine/pkg/guardrails"
 )
 
 func TestInboundBlocksAnInjection(t *testing.T) {

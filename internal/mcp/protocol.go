@@ -24,7 +24,13 @@
 //     later call.
 package mcp
 
-import "encoding/json"
+import (
+	"encoding/base64"
+	"encoding/json"
+	"path"
+
+	"go.vicoworks.com/guard-rails-engine/internal/core"
+)
 
 // ProtocolVersion is the MCP revision this gateway speaks.
 const ProtocolVersion = "2025-06-18"
@@ -90,10 +96,66 @@ type Annotations struct {
 	OpenWorldHint   *bool  `json:"openWorldHint,omitempty"`
 }
 
-// Content is one block of a tool result.
+// Content is one block of a tool result: text, image, audio, or an
+// embedded resource.
 type Content struct {
-	Type string `json:"type"`
-	Text string `json:"text,omitempty"`
+	Type     string    `json:"type"`
+	Text     string    `json:"text,omitempty"`
+	Data     string    `json:"data,omitempty"`     // base64, for image and audio blocks
+	MimeType string    `json:"mimeType,omitempty"` // for image and audio blocks
+	Resource *Resource `json:"resource,omitempty"`
+}
+
+// Resource is an embedded resource block.
+type Resource struct {
+	URI      string `json:"uri"`
+	MimeType string `json:"mimeType,omitempty"`
+	Text     string `json:"text,omitempty"`
+	Blob     string `json:"blob,omitempty"` // base64
+}
+
+// Parts converts the non-text blocks of a result into attachments for the
+// ingest step. A screenshot an MCP browser returns is as attacker-authorable
+// as the page text it shows, and an agent reads both.
+func (c *CallResult) Parts() []core.Part {
+	var out []core.Part
+	for _, b := range c.Content {
+		switch b.Type {
+		case "image", "audio":
+			data, err := base64.StdEncoding.DecodeString(b.Data)
+			if err != nil {
+				continue
+			}
+			mod := core.ModalityImage
+			if b.Type == "audio" {
+				mod = core.ModalityAudio
+			}
+			out = append(out, core.Part{Type: mod, MIME: b.MimeType, Data: data})
+		case "resource":
+			if b.Resource == nil {
+				continue
+			}
+			name := path.Base(b.Resource.URI)
+			if b.Resource.Blob != "" {
+				data, err := base64.StdEncoding.DecodeString(b.Resource.Blob)
+				if err != nil {
+					continue
+				}
+				out = append(out, core.Part{MIME: b.Resource.MimeType, Name: name, Data: data})
+			} else if b.Resource.Text != "" {
+				out = append(out, core.Part{Type: core.ModalityDocument, MIME: firstMIME(b.Resource.MimeType), Name: name,
+					Data: []byte(b.Resource.Text)})
+			}
+		}
+	}
+	return out
+}
+
+func firstMIME(m string) string {
+	if m == "" {
+		return "text/plain"
+	}
+	return m
 }
 
 // CallResult is the result of tools/call.

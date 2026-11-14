@@ -15,6 +15,8 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"gopkg.in/yaml.v3"
+
+	"go.vicoworks.com/guard-rails-engine/internal/core"
 )
 
 // Route is one entry in the model catalog: a stable alias the client asks for,
@@ -36,6 +38,20 @@ type Route struct {
 	// router and the console use it; the router itself never reads it.
 	Tier        string `yaml:"tier,omitempty" json:"tier,omitempty"`
 	Description string `yaml:"description,omitempty" json:"description,omitempty"`
+
+	// Inputs lists the modalities the upstream accepts natively (text, image,
+	// audio, document, video). Empty means "send everything and let the
+	// upstream decide". Attachments of any other modality are replaced by
+	// their extracted text for this route only, so a text-only fallback still
+	// answers instead of failing with a 400.
+	Inputs []string `yaml:"inputs,omitempty" json:"inputs,omitempty"`
+
+	// Guard names the output format of a safety classifier route
+	// (llama_guard, qwen3guard, granite_guardian, nemotron, prompt_guard,
+	// policy). Empty: detected from the model id.
+	Guard string `yaml:"guard,omitempty" json:"guard,omitempty"`
+	// Risk is the risk definition for Granite Guardian routes.
+	Risk string `yaml:"risk,omitempty" json:"risk,omitempty"`
 }
 
 // Catalog is the parsed model catalog.
@@ -163,7 +179,7 @@ func NewRouter(opts RouterOptions) (*Router, error) {
 		}
 	}
 	opts.Breaker = opts.Breaker.withDefaults()
-	return &Router{opts: opts, tracer: otel.Tracer("github.com/VicoAritonang/guard-rails-engine/providers")}, nil
+	return &Router{opts: opts, tracer: otel.Tracer("go.vicoworks.com/guard-rails-engine/providers")}, nil
 }
 
 func (r *Router) Name() string { return "router" }
@@ -277,6 +293,9 @@ func (r *Router) Complete(ctx context.Context, req Request) (*Response, error) {
 		}
 		if sub.MaxTokens <= 0 && rt.MaxTokens > 0 {
 			sub.MaxTokens = rt.MaxTokens
+		}
+		if len(rt.Inputs) > 0 {
+			sub.Messages = core.RestrictParts(sub.Messages, rt.Inputs)
 		}
 
 		resp, dur, err := r.call(ctx, rt, sub, i > 0)

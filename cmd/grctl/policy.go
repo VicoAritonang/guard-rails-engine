@@ -8,8 +8,8 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"github.com/VicoAritonang/guard-rails-engine/config"
-	"github.com/VicoAritonang/guard-rails-engine/internal/guards"
+	"go.vicoworks.com/guard-rails-engine/config"
+	"go.vicoworks.com/guard-rails-engine/internal/guards"
 )
 
 func runPolicy(args []string) error {
@@ -91,8 +91,14 @@ func policyLint(args []string) error {
 			}
 		}
 	}
+	// Operator-authored guards have nothing to enforce until the operator
+	// writes rules, so their being off is the expected state, not a gap.
+	optIn := map[string]bool{
+		config.GuardCustomRules: true, config.GuardCustomRulesOutbound: true,
+		config.GuardCustomRulesToolResult: true, config.GuardURLFilter: true, config.GuardURLFilterOutbound: true,
+	}
 	for _, name := range config.KnownGuards() {
-		if !pol.Guard(name).Enabled {
+		if !pol.Guard(name).Enabled && !optIn[name] {
 			warnings = append(warnings, fmt.Sprintf("%s is disabled", name))
 		}
 	}

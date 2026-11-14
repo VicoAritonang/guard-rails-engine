@@ -52,6 +52,29 @@ export class Client {
     return this.#guard("outbound", request);
   }
 
+  /**
+   * Upload a file to /v1/guard/media. `data` is a Blob, File, ArrayBuffer or
+   * Uint8Array. Use stage "tool_result" for retrieved content (RAG, web,
+   * email), which applies the indirect-injection prior.
+   */
+  async scanFile(data, { name = "upload.bin", mime, stage = "inbound", text, origin, tool, tenant } = {}) {
+    const form = new FormData();
+    const blob = data instanceof Blob ? data : new Blob([data], mime ? { type: mime } : {});
+    form.append("file", blob, name);
+    for (const [k, v] of Object.entries({ stage, text, origin, tool, tenant })) {
+      if (v) form.append(k, v);
+    }
+    const reply = await this.#request("POST", "/v1/guard/media", form);
+    const result = toResult(reply);
+    if (result.blocked) throw new Blocked(result.reason, result);
+    return result;
+  }
+
+  /** What this gateway can read: formats, OCR, speech-to-text, image classifiers. */
+  mediaInfo() {
+    return this.#request("GET", "/v1/media");
+  }
+
   /** Report whether the gateway is serving. */
   async health() {
     try {
@@ -72,25 +95,16 @@ export class Client {
       if (this.failOpen && unreachable) return passthrough(stage, request);
       throw err;
     }
-    const result = {
-      decision: data.decision ?? {},
-      blocked: Boolean(data.blocked),
-      reason: data.reason ?? "",
-      system: data.system ?? "",
-      messages: data.messages ?? [],
-      completion: data.completion ?? "",
-      toolResults: data.tool_results ?? [],
-      vaultToken: data.vault_token ?? "",
-      session: data.session,
-      degraded: false,
-    };
+    const result = toResult(data);
     if (result.blocked) throw new Blocked(result.reason, result);
     return result;
   }
 
   async #request(method, path, body) {
     const headers = { Accept: "application/json" };
-    if (body !== undefined) headers["Content-Type"] = "application/json";
+    const isForm = typeof FormData !== "undefined" && body instanceof FormData;
+    // FormData sets its own multipart boundary header.
+    if (body !== undefined && !isForm) headers["Content-Type"] = "application/json";
     if (this.apiKey) headers.Authorization = `Bearer ${this.apiKey}`;
 
     let response;
@@ -98,7 +112,7 @@ export class Client {
       response = await this.fetch(this.baseUrl + path, {
         method,
         headers,
-        body: body === undefined ? undefined : JSON.stringify(body),
+        body: body === undefined ? undefined : isForm ? body : JSON.stringify(body),
         signal: AbortSignal.timeout(this.timeoutMs),
       });
     } catch (err) {
@@ -110,6 +124,47 @@ export class Client {
     }
     return response.json();
   }
+}
+
+/**
+ * Build a message part from bytes. The gateway identifies the format from the
+ * bytes; `mime` is a hint.
+ */
+export function attachment(data, { name, mime } = {}) {
+  const bytes = data instanceof Uint8Array ? data : new Uint8Array(data);
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) {
+    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  }
+  const part = { data: btoa(binary) };
+  if (name) part.name = name;
+  if (mime) part.mime = mime;
+  return part;
+}
+
+function toResult(data) {
+  const messages = data.messages ?? [];
+  const toolResults = data.tool_results ?? [];
+  const extractions = [];
+  for (const item of [...messages, ...toolResults]) {
+    for (const part of item.parts ?? []) {
+      if (part.extraction) extractions.push({ name: part.name ?? "", type: part.type ?? "", ...part.extraction });
+    }
+  }
+  return {
+    decision: data.decision ?? {},
+    blocked: Boolean(data.blocked),
+    reason: data.reason ?? "",
+    system: data.system ?? "",
+    messages,
+    completion: data.completion ?? "",
+    toolResults,
+    vaultToken: data.vault_token ?? "",
+    session: data.session,
+    semantic: data.semantic,
+    extractions,
+    degraded: false,
+  };
 }
 
 // wire translates the camelCase request into the gateway's field names.

@@ -1,0 +1,20 @@
+apiVersion: v2
+name: guard-rails-engine
+description: >
+  AI guardrails gateway: prompt, tool, tool-result and output rails for text,
+  documents, images and audio, with an OpenAI-compatible proxy, an MCP gateway
+  and Prometheus/OTLP telemetry.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+home: https://github.com/VicoAritonang/guard-rails-engine
+sources:
+  - https://github.com/VicoAritonang/guard-rails-engine
+keywords:
+  - llm
+  - guardrails
+  - ai-safety
+  - prompt-injection
+  - mcp
+  - gateway
+license: MIT

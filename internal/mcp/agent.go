@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/VicoAritonang/guard-rails-engine/internal/core"
-	"github.com/VicoAritonang/guard-rails-engine/internal/providers"
+	"go.vicoworks.com/guard-rails-engine/internal/core"
+	"go.vicoworks.com/guard-rails-engine/internal/providers"
 )
 
 // RunRequest starts or resumes an agent run.

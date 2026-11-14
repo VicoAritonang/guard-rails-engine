@@ -212,6 +212,11 @@ type Message struct {
 	// result whose call it never saw.
 	ToolCalls  []ToolCall `json:"tool_calls,omitempty"`
 	ToolCallID string     `json:"tool_call_id,omitempty"`
+
+	// Parts are the attachments of this turn: images, documents, audio,
+	// video. Content stays the turn's plain text; each part is scanned
+	// through the text the ingest step extracted from it.
+	Parts []Part `json:"parts,omitempty"`
 }
 
 // ToolCall is a tool invocation proposed by the model, inspected at the runtime
@@ -274,6 +279,11 @@ type ToolResult struct {
 	// Sensitive marks a result that carried private data out of a system of
 	// record. It is what the trifecta guard counts as "read private data".
 	Sensitive bool `json:"sensitive,omitempty"`
+
+	// Parts carry non-text output: a browser screenshot, a fetched PDF, an
+	// MCP image or audio block. An agent reads them as readily as text, so
+	// they are attacker-authorable exactly as text is.
+	Parts []Part `json:"parts,omitempty"`
 }
 
 // Usage carries token accounting for cost attribution.
@@ -361,6 +371,11 @@ func (t *Transaction) ScanFields() []FieldValue {
 		}
 		for i, m := range t.Messages {
 			out = append(out, FieldValue{Field: msgField(i), Role: m.Role, Text: m.Content})
+			for j, p := range m.Parts {
+				if p.Text != "" {
+					out = append(out, FieldValue{Field: msgPartField(i, j), Role: m.Role, Text: p.Text})
+				}
+			}
 		}
 	case StageRuntime:
 		for i, c := range t.ToolCalls {
@@ -372,10 +387,14 @@ func (t *Transaction) ScanFields() []FieldValue {
 		}
 	case StageToolResult:
 		for i, r := range t.ToolResults {
-			if r.Content == "" {
-				continue
+			if r.Content != "" {
+				out = append(out, FieldValue{Field: resultField(i), Role: RoleTool, Text: r.Content})
 			}
-			out = append(out, FieldValue{Field: resultField(i), Role: RoleTool, Text: r.Content})
+			for j, p := range r.Parts {
+				if p.Text != "" {
+					out = append(out, FieldValue{Field: resultPartField(i, j), Role: RoleTool, Text: p.Text})
+				}
+			}
 		}
 	case StageOutbound:
 		if t.Completion != "" {
@@ -416,6 +435,9 @@ func (t *Transaction) Field(ref string) (string, bool) {
 	if i, ok := parseIndexed(ref, "tool_results[", "].content"); ok && i < len(t.ToolResults) {
 		return t.ToolResults[i].Content, true
 	}
+	if p, ok := t.partAt(ref); ok {
+		return p.Text, true
+	}
 	return "", false
 }
 
@@ -439,6 +461,10 @@ func (t *Transaction) SetField(ref, val string) bool {
 	}
 	if i, ok := parseIndexed(ref, "tool_results[", "].content"); ok && i < len(t.ToolResults) {
 		t.ToolResults[i].Content = val
+		return true
+	}
+	if p, ok := t.partAt(ref); ok {
+		p.Text = val
 		return true
 	}
 	return false

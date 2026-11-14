@@ -1,0 +1,21 @@
+{{- if include "gre.hasConfig" . }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "gre.fullname" . }}
+  labels:
+    {{- include "gre.labels" . | nindent 4 }}
+data:
+  {{- with .Values.policy.inline }}
+  policy.yaml: |
+    {{- . | nindent 4 }}
+  {{- end }}
+  {{- with .Values.models.inline }}
+  models.yaml: |
+    {{- . | nindent 4 }}
+  {{- end }}
+  {{- with .Values.mcp.inline }}
+  mcp.yaml: |
+    {{- . | nindent 4 }}
+  {{- end }}
+{{- end }}

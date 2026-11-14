@@ -90,9 +90,24 @@ type ModerationResult struct {
 }
 
 func (m *Moderation) Moderate(ctx context.Context, text string) (*ModerationResult, error) {
+	return m.moderate(ctx, openai.ModerationNewParamsInputUnion{OfString: openai.String(text)})
+}
+
+// ModerateImage scores an image (a URL or a data: URI). omni-moderation
+// covers sexual, violence and self-harm categories for images; the rest of
+// its taxonomy is text-only.
+func (m *Moderation) ModerateImage(ctx context.Context, imageURL string) (*ModerationResult, error) {
+	return m.moderate(ctx, openai.ModerationNewParamsInputUnion{
+		OfModerationMultiModalArray: []openai.ModerationMultiModalInputUnionParam{
+			openai.ModerationMultiModalInputParamOfImageURL(openai.ModerationImageURLInputImageURLParam{URL: imageURL}),
+		},
+	})
+}
+
+func (m *Moderation) moderate(ctx context.Context, input openai.ModerationNewParamsInputUnion) (*ModerationResult, error) {
 	resp, err := m.client.Moderations.New(ctx, openai.ModerationNewParams{
 		Model: openai.ModerationModel(m.model),
-		Input: openai.ModerationNewParamsInputUnion{OfString: openai.String(text)},
+		Input: input,
 	})
 	if err != nil {
 		return nil, classifyOpenAIError(err)

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/VicoAritonang/guard-rails-engine/config"
+	"go.vicoworks.com/guard-rails-engine/config"
 )
 
 // SweepPoint is one threshold setting and what it costs.

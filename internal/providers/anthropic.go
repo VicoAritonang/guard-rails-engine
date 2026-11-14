@@ -2,6 +2,7 @@ package providers
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,7 +11,7 @@ import (
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
 
-	"github.com/VicoAritonang/guard-rails-engine/internal/core"
+	"go.vicoworks.com/guard-rails-engine/internal/core"
 )
 
 // AnthropicOptions configures the upstream client.
@@ -215,18 +216,25 @@ func toSDKMessages(in []core.Message) ([]anthropic.MessageParam, error) {
 	var out []anthropic.MessageParam
 	var pendingRole core.Role
 	var pending string
+	var attachments []anthropic.ContentBlockParamUnion
 
 	flush := func() {
-		if pending == "" {
+		if pending == "" && len(attachments) == 0 {
 			return
 		}
-		block := anthropic.NewTextBlock(pending)
+		// Attachments first, then the text: Anthropic recommends placing
+		// images and documents before the question about them.
+		blocks := append([]anthropic.ContentBlockParamUnion{}, attachments...)
+		if pending != "" {
+			blocks = append(blocks, anthropic.NewTextBlock(pending))
+		}
 		if pendingRole == core.RoleAssistant {
-			out = append(out, anthropic.NewAssistantMessage(block))
+			out = append(out, anthropic.NewAssistantMessage(blocks...))
 		} else {
-			out = append(out, anthropic.NewUserMessage(block))
+			out = append(out, anthropic.NewUserMessage(blocks...))
 		}
 		pending = ""
+		attachments = nil
 	}
 
 	for _, m := range in {
@@ -237,14 +245,27 @@ func toSDKMessages(in []core.Message) ([]anthropic.MessageParam, error) {
 		if role != core.RoleUser && role != core.RoleAssistant {
 			continue // system content travels in the System field
 		}
-		if role != pendingRole && pending != "" {
+		if role != pendingRole && (pending != "" || len(attachments) > 0) {
 			flush()
 		}
 		pendingRole = role
+		content := m.Content
+		for _, p := range m.Parts {
+			if b, ok := anthropicBlock(p); ok && role == core.RoleUser {
+				attachments = append(attachments, b)
+				continue
+			}
+			if t := p.AsText().Text; t != "" {
+				content += "\n\n" + t
+			}
+		}
+		if content == "" {
+			continue
+		}
 		if pending != "" {
 			pending += "\n\n"
 		}
-		pending += m.Content
+		pending += content
 	}
 	flush()
 
@@ -252,6 +273,21 @@ func toSDKMessages(in []core.Message) ([]anthropic.MessageParam, error) {
 		return nil, errors.New("anthropic: conversation cannot start with an assistant turn")
 	}
 	return out, nil
+}
+
+// anthropicBlock converts an attachment the Messages API accepts natively:
+// raster images and PDFs. Everything else travels as its extracted text.
+func anthropicBlock(p core.Part) (anthropic.ContentBlockParamUnion, bool) {
+	if len(p.Data) == 0 {
+		return anthropic.ContentBlockParamUnion{}, false
+	}
+	switch {
+	case p.Type == core.ModalityImage && (p.MIME == "image/png" || p.MIME == "image/jpeg" || p.MIME == "image/gif" || p.MIME == "image/webp"):
+		return anthropic.NewImageBlockBase64(p.MIME, base64.StdEncoding.EncodeToString(p.Data)), true
+	case p.Type == core.ModalityDocument && p.MIME == "application/pdf":
+		return anthropic.NewDocumentBlock(anthropic.Base64PDFSourceParam{Data: base64.StdEncoding.EncodeToString(p.Data)}), true
+	}
+	return anthropic.ContentBlockParamUnion{}, false
 }
 
 // UpstreamError distinguishes a retryable upstream failure from a client error,

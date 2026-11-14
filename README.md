@@ -1,7 +1,7 @@
 # Guardrails Engine
 
 [![ci](https://github.com/VicoAritonang/guard-rails-engine/actions/workflows/ci.yml/badge.svg)](https://github.com/VicoAritonang/guard-rails-engine/actions/workflows/ci.yml)
-[![Go Reference](https://pkg.go.dev/badge/github.com/VicoAritonang/guard-rails-engine.svg)](https://pkg.go.dev/github.com/VicoAritonang/guard-rails-engine)
+[![Go Reference](https://pkg.go.dev/badge/go.vicoworks.com/guard-rails-engine.svg)](https://pkg.go.dev/go.vicoworks.com/guard-rails-engine)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 A production-shaped AI guardrails and evaluation engine in Go. It sits between an
@@ -79,10 +79,12 @@ answer = call_your_model(inbound.messages)   # the rewritten payload
 print(gr.outbound(completion=answer, vault_token=inbound.vault_token).completion)
 ```
 
-**Embed it in a Go program**, with no gateway to run:
+**Embed it in a Go program**, with no gateway to run
+(`go get go.vicoworks.com/guard-rails-engine@latest`; guide:
+[docs/go-library.md](docs/go-library.md)):
 
 ```go
-import "github.com/VicoAritonang/guard-rails-engine/pkg/guardrails"
+import "go.vicoworks.com/guard-rails-engine/pkg/guardrails"
 
 g, _ := guardrails.New(guardrails.Options{})
 in, err := g.Inbound(ctx, guardrails.Request{Messages: messages})
@@ -98,6 +100,43 @@ to a network, read the [deployment checklist](SECURITY.md#deploying-safely).
 Bug reports, detection misses and pull requests are welcome: see
 [CONTRIBUTING.md](CONTRIBUTING.md). A prompt the engine got wrong is the most
 useful contribution there is.
+
+## v4: attachments, 2026 guard models, operator rules
+
+**Documents, images, audio and video** ([docs/multimodal.md](docs/multimodal.md),
+[ADR 0011](docs/adr/0011-multimodal-ingest.md)). `/v1/chat/completions` accepts
+image, audio and file content parts; `POST /v1/guard/media` scans uploads;
+MCP image, audio and resource blocks go through the tool-result rails. Each
+attachment is turned into the text a model would read from it (PDF, Office,
+ODF, HTML, SVG, RTF, image metadata, OCR, speech-to-text), so every existing
+guard scans it, and the `media` guards report what only files can carry:
+macros, active content, hidden text, remote templates, decompression bombs,
+polyglots and unsafe images. What the gateway could not read is reported as
+`media.unscannable`, never passed silently.
+
+```bash
+curl -F file=@contract.pdf http://localhost:8080/v1/guard/media
+curl -F file=@page.html -F stage=tool_result -F origin=web http://localhost:8080/v1/guard/media
+```
+
+**The 2026 guard models** ([ADR 0012](docs/adr/0012-guard-model-catalog.md),
+[comparison](docs/landscape.md)). Llama Guard 4 (text and images), Qwen3Guard,
+Granite Guardian, Nemotron Content Safety and gpt-oss-safeguard are catalog
+routes with an output format; self-hosted sequence classifiers plug in as
+`tei:http://host:port`; a `local` provider drives vLLM or Ollama. The semantic
+tier now runs on all four stages and on `/v1/guard/*`, and on the runtime stage
+it judges whether a tool call serves what the user asked: the semantic half of
+tool safety, alongside the deterministic control plane.
+
+**Operator rules.** `custom_rules` (keywords on adversarially normalised text
+and RE2 patterns, written in the policy file) and `url_filter` (allow and deny
+lists, schemes, credentials in URLs, private addresses) on inbound, outbound
+and tool results.
+
+**Deployment.** A Helm chart (`deploy/helm/guard-rails-engine`), a compose
+overlay that runs the guard models, OCR and Whisper locally, and the Go
+library gained `ScanFile` and pluggable OCR and speech backends
+([docs/deployment.md](docs/deployment.md)).
 
 ## v3: MCP gateway, live showcase, public benchmarks
 
@@ -295,10 +334,13 @@ BLOCK  stage=inbound  policy=balanced  412µs
 
 | Stage | Runs | Guards |
 |---|---|---|
-| **Inbound** | before the prompt reaches a provider | `injection` `pii` `secrets` `topic` `quota` |
+| **Inbound** | before the prompt reaches a provider | `injection` `pii` `secrets` `topic` `quota` `media` `custom_rules` `url_filter` |
 | **Runtime** | between agent steps, **before a tool executes** | `tool_safety` `tool_policy` `loop_breaker` `budget_breaker` |
-| **Tool result** | on what a tool returned, before it re-enters the context | `tool_result` |
-| **Outbound** | before the completion reaches the caller | `leak` `format` `schema` `grounding` `restore` |
+| **Tool result** | on what a tool returned, before it re-enters the context | `tool_result` `media_result` `custom_rules_tool_result` |
+| **Outbound** | before the completion reaches the caller | `leak` `format` `schema` `grounding` `restore` `custom_rules_outbound` `url_filter_outbound` |
+
+Attachments (documents, images, audio, video) are turned into text before the
+inbound and tool-result stages run, so every guard in those rows reads them.
 
 The last two are what an agent needs and a chatbot does not. The runtime stage is
 the final point at which a side effect can still be prevented; the tool-result
@@ -966,14 +1008,16 @@ config/           policy engine, env config, shipped YAML profiles
 internal/core     guard contract, pipeline executor, redaction vault, session state
       ├ normalize adversarial-text folding with an offset map
 internal/agent    tool catalog, risk model, taint, approvals, execution broker
-internal/guards   inbound/ runtime/ toolresult/ outbound/ + checksum validators
+internal/guards   inbound/ runtime/ toolresult/ outbound/ rules/ + checksum validators
+internal/media    attachment ingest: PDF, Office, HTML, SVG, images, OCR, speech-to-text
+internal/judge    semantic tier: Prompt Guard, Llama Guard, Qwen3Guard, Granite, Nemotron, policy judges
 internal/eval     dataset, harness, confusion matrix, sweep, red team, reports
 internal/telemetry Prometheus, OpenTelemetry, cost engine, audit log
-internal/providers openai · anthropic · groq · mock · replay (record/replay cassettes)
+internal/providers openai · anthropic · groq · local (vLLM/Ollama) · mock · replay
 pkg/guardrails    public Go library: the engine, in process
 pkg/sdk           Go client for sidecar mode
 sdks/             Python and JavaScript clients
-deploy/           compose, Kubernetes, Grafana, Prometheus
+deploy/           compose (+ local guard models), Helm, Kubernetes, Grafana, Prometheus
 testdata/eval     labelled corpus
 ```
 

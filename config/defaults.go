@@ -24,6 +24,14 @@ const (
 	GuardGrounding  = "grounding"
 	GuardFormat     = "format"
 	GuardRestore    = "restore"
+
+	GuardMedia                 = "media"
+	GuardMediaResult           = "media_result"
+	GuardCustomRules           = "custom_rules"
+	GuardCustomRulesOutbound   = "custom_rules_outbound"
+	GuardCustomRulesToolResult = "custom_rules_tool_result"
+	GuardURLFilter             = "url_filter"
+	GuardURLFilterOutbound     = "url_filter_outbound"
 )
 
 // guardStages is the authoritative guard -> stage mapping, used by the policy
@@ -44,6 +52,14 @@ var guardStages = map[string]string{
 	GuardGrounding:  "outbound",
 	GuardFormat:     "outbound",
 	GuardRestore:    "outbound",
+
+	GuardMedia:                 "inbound",
+	GuardMediaResult:           "tool_result",
+	GuardCustomRules:           "inbound",
+	GuardCustomRulesOutbound:   "outbound",
+	GuardCustomRulesToolResult: "tool_result",
+	GuardURLFilter:             "inbound",
+	GuardURLFilterOutbound:     "outbound",
 }
 
 func guardStage(name string) string { return guardStages[name] }
@@ -355,6 +371,94 @@ func DefaultPolicy() *Policy {
 				FailMode: FailOpen,
 				Actions:  map[string]string{"info": "redact"},
 			},
+
+			// Multimodal ingest. The extraction runs before the stage (it has
+			// its own deadline, extract_timeout_seconds); this guard grades
+			// what it found. Unscannable content is medium, so the balanced
+			// profile flags it and the strict profile blocks it.
+			GuardMedia:       mediaDefaults(sec(10), "flag"),
+			GuardMediaResult: mediaDefaults(sec(10), "flag"),
+
+			// Operator-defined rules: keywords and regular expressions with a
+			// category, severity and optional replacement. Off until rules are
+			// written, because an empty rule list protects nothing.
+			GuardCustomRules:           customRuleDefaults(sec(10)),
+			GuardCustomRulesOutbound:   customRuleDefaults(sec(10)),
+			GuardCustomRulesToolResult: customRuleDefaults(sec(10)),
+
+			// URL allow-listing, the deterministic counterpart of OpenAI
+			// Guardrails' URL filter. Off by default: an empty allow list
+			// would block every link.
+			GuardURLFilter:         urlFilterDefaults(sec(10)),
+			GuardURLFilterOutbound: urlFilterDefaults(sec(10)),
+		},
+	}
+}
+
+func mediaDefaults(timeout time.Duration, medium string) *GuardConfig {
+	return &GuardConfig{
+		Enabled:  true,
+		Timeout:  timeout,
+		FailMode: FailClosed, // an attachment nobody read must not pass because the reader broke
+		Actions: map[string]string{
+			"info": "flag", "low": "flag", "medium": medium, "high": "block", "critical": "block",
+		},
+		Categories: map[string]CategoryOverride{
+			// Image metadata text is scanned by every text guard; its mere
+			// presence is a statistic, not an incident.
+			"media.metadata_text": {Severity: "info", Action: "flag"},
+		},
+		Params: map[string]any{
+			"max_parts":               16,
+			"max_part_bytes":          25 << 20,
+			"max_total_bytes":         64 << 20,
+			"max_pixels":              50_000_000,
+			"max_extract_chars":       200_000,
+			"max_audio_seconds":       1800,
+			"max_archive_entries":     5000,
+			"max_uncompressed_bytes":  200 << 20,
+			"max_compression_ratio":   150,
+			"max_pdf_ocr_images":      8,
+			"extract_timeout_seconds": 60,
+			"concurrency":             4,
+			"fetch_remote":            false,
+			"fetch_allow_hosts":       []any{},
+			"forward":                 "native",
+			"binary_redaction":        "replace_with_text",
+			"ocr_scanned_documents":   true,
+		},
+	}
+}
+
+func customRuleDefaults(timeout time.Duration) *GuardConfig {
+	return &GuardConfig{
+		Enabled:  false,
+		Timeout:  timeout,
+		FailMode: FailOpen,
+		Actions: map[string]string{
+			"info": "flag", "low": "flag", "medium": "flag", "high": "block", "critical": "block",
+		},
+		Params: map[string]any{"rules": []any{}},
+	}
+}
+
+func urlFilterDefaults(timeout time.Duration) *GuardConfig {
+	return &GuardConfig{
+		Enabled:  false,
+		Timeout:  timeout,
+		FailMode: FailOpen,
+		Actions: map[string]string{
+			"low": "flag", "medium": "redact", "high": "block", "critical": "block",
+		},
+		Params: map[string]any{
+			"allow":             []any{},
+			"deny":              []any{},
+			"allowed_schemes":   []any{"https"},
+			"allow_subdomains":  true,
+			"block_userinfo":    true,
+			"block_ip_literals": true,
+			"block_private":     true,
+			"severity":          "medium",
 		},
 	}
 }

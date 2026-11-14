@@ -93,7 +93,7 @@ except openai.UnprocessableEntityError as refused:
 | Sampling (`temperature`, `top_p`, ...) | Accepted and not forwarded, because reasoning models reject them. |
 | Other unknown parameters | Accepted and not acted on, including `response_format`. Each one is listed in `guardrails.ignored_params`. |
 | `tools`, tool turns | Refused with a 400. Forwarding them would let a model use tools outside the control plane. Use the MCP gateway, `/v1/agent/execute`, or check each call with `/v1/guard/runtime`. |
-| Images and files | Refused with a 400: the guards read text, and a file would reach the provider unscanned. |
+| Images, audio and files | Accepted (`image_url`, `input_audio`, `file` with `file_data`). Each is turned into text and scanned before anything is forwarded; see [multimodal](multimodal.md). `file_id` references are refused with a 400, because the gateway never saw those bytes. |
 | `n` above 1 | Refused with a 400. |
 
 Every response also carries a `guardrails` object saying what the engine did, with
@@ -157,7 +157,7 @@ cannot serve, such as agents with tools.
 |---|---|---|
 | Python | `pip install guard-rails-engine` | [sdks/python](../sdks/python/README.md) |
 | JavaScript, TypeScript | `npm install guard-rails-engine` | [sdks/js](../sdks/js/README.md) |
-| Go | `go get github.com/VicoAritonang/guard-rails-engine/pkg/sdk` | [pkg/sdk](../pkg/sdk/client.go) |
+| Go | `go get go.vicoworks.com/guard-rails-engine/pkg/sdk` | [pkg/sdk](../pkg/sdk/client.go) |
 | Anything else | HTTP | Below |
 
 ```bash
@@ -178,7 +178,7 @@ For an agent loop, call `/v1/guard/runtime` with the proposed tool calls and
 `pkg/guardrails` runs the engine inside your process, with no network hop.
 
 ```bash
-go get github.com/VicoAritonang/guard-rails-engine/pkg/guardrails
+go get go.vicoworks.com/guard-rails-engine/pkg/guardrails
 ```
 
 ```go
@@ -213,7 +213,7 @@ Pass `Options.Policy` to change the policy: `config.StrictPolicy()`, or
 | A single host | [`deploy/compose/docker-compose.yml`](../deploy/compose/docker-compose.yml) |
 | Kubernetes | [`deploy/kubernetes/guardrails.yaml`](../deploy/kubernetes/guardrails.yaml) |
 | Local development with dashboards | The root [`docker-compose.yml`](../docker-compose.yml) |
-| No Docker | Binaries on the [releases page](https://github.com/VicoAritonang/guard-rails-engine/releases), or `go install github.com/VicoAritonang/guard-rails-engine/cmd/server@latest` |
+| No Docker | Binaries on the [releases page](https://github.com/VicoAritonang/guard-rails-engine/releases), or `go install go.vicoworks.com/guard-rails-engine/cmd/server@latest` |
 
 Metrics, traces and logs are standard: Prometheus at `/metrics`, OTLP/HTTP with
 `GUARDRAILS_OTLP_ENDPOINT`, and JSON on stdout. See [observability](observability.md).

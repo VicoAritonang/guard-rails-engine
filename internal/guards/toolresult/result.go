@@ -17,10 +17,10 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/VicoAritonang/guard-rails-engine/config"
-	"github.com/VicoAritonang/guard-rails-engine/internal/core"
-	"github.com/VicoAritonang/guard-rails-engine/internal/core/normalize"
-	"github.com/VicoAritonang/guard-rails-engine/internal/guards/inbound"
+	"go.vicoworks.com/guard-rails-engine/config"
+	"go.vicoworks.com/guard-rails-engine/internal/core"
+	"go.vicoworks.com/guard-rails-engine/internal/core/normalize"
+	"go.vicoworks.com/guard-rails-engine/internal/guards/inbound"
 )
 
 // Guard inspects tool results.
@@ -118,6 +118,22 @@ func (g *Guard) Check(ctx context.Context, tx *core.Transaction) (core.Result, e
 		g.checkExfilLinks(&res, field, scan.Name, nv)
 		g.checkToolDirectives(&res, field, scan.Name, nv)
 		g.checkImperativeFraming(&res, field, scan.Name, nv)
+
+		// Attachments a tool returned (a screenshot's OCR, a fetched PDF's
+		// text) get the same pattern checks as its text output. They are
+		// bounded by the ingest step's own character limit, not scan_bytes.
+		for j, p := range r.Parts {
+			if p.Text == "" {
+				continue
+			}
+			pf := fmt.Sprintf("tool_results[%d].parts[%d].text", i, j)
+			pr := core.ToolResult{Name: r.Name, Content: p.Text, Origin: r.Origin}
+			g.checkHidden(&res, pf, pr)
+			pv := newView(p.Text)
+			g.checkExfilLinks(&res, pf, r.Name, pv)
+			g.checkToolDirectives(&res, pf, r.Name, pv)
+			g.checkImperativeFraming(&res, pf, r.Name, pv)
+		}
 	}
 	res.Metrics["tool_result.bytes"] = float64(totalBytes)
 	res.Metrics["tool_result.scanned_bytes"] = float64(scannedBytes(view))
@@ -431,6 +447,10 @@ func excerpt(s string, start, end int) string {
 
 func resultIndex(field string) (int, bool) {
 	const prefix, suffix = "tool_results[", "].content"
+	// A part reference ("tool_results[2].parts[0].text") belongs to result 2.
+	if strings.HasPrefix(field, prefix) && strings.Contains(field, "].parts[") {
+		field = field[:strings.Index(field, "].parts[")] + suffix
+	}
 	if !strings.HasPrefix(field, prefix) || !strings.HasSuffix(field, suffix) {
 		return 0, false
 	}

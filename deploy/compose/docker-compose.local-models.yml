@@ -1,0 +1,78 @@
+# Self-hosted guard models next to the gateway: nothing leaves the network,
+# and there is no per-call fee. Layer it over either compose file:
+#
+#   docker compose -f docker-compose.yml -f deploy/compose/docker-compose.local-models.yml up -d
+#
+# What it adds:
+#
+#   ollama          OpenAI-compatible model server (the "local" provider).
+#   ollama-pull     one-shot job that pulls the guard and vision models.
+#   speaches        OpenAI-compatible speech-to-text (faster-whisper), for audio
+#                   and video attachments.
+#   promptguard     Llama Prompt Guard 2 on text-embeddings-inference, a 5-30 ms
+#                   CPU injection classifier. The model is gated: accept the
+#                   licence on Hugging Face and set HF_TOKEN, or remove the service.
+#
+# Image tags are variables so they can be pinned; pin them by digest in
+# anything that is not a laptop. Ollama tags differ from Hugging Face ids, so
+# the catalog routes for Ollama use the provider:model form below rather than
+# the vLLM ids in config/models.yaml.
+
+services:
+  guardrails:
+    environment:
+      LOCAL_BASE_URL: http://ollama:11434/v1
+      GUARDRAILS_JUDGE_MODE: ${GUARDRAILS_JUDGE_MODE:-cascade}
+      GUARDRAILS_JUDGE_CLASSIFIERS: ${GUARDRAILS_JUDGE_CLASSIFIERS:-tei:http://promptguard:80,local:llama-guard3:8b}
+      GUARDRAILS_JUDGE_STAGES: ${GUARDRAILS_JUDGE_STAGES:-inbound,tool_result}
+      GUARDRAILS_JUDGE_TIMEOUT: 15s
+      GUARDRAILS_MEDIA_OCR: ${GUARDRAILS_MEDIA_OCR:-local:qwen2.5vl:7b}
+      GUARDRAILS_MEDIA_TRANSCRIBE: http://speaches:8000/v1
+      GUARDRAILS_MEDIA_TRANSCRIBE_MODEL: ${GUARDRAILS_MEDIA_TRANSCRIBE_MODEL:-Systran/faster-whisper-small}
+    depends_on:
+      - ollama
+      - speaches
+
+  ollama:
+    image: ollama/ollama:${OLLAMA_VERSION:-latest}
+    volumes:
+      - ollama-models:/root/.ollama
+    # Uncomment on a host with an NVIDIA GPU and the container toolkit.
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices: [{ driver: nvidia, count: all, capabilities: [gpu] }]
+
+  ollama-pull:
+    image: ollama/ollama:${OLLAMA_VERSION:-latest}
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >
+        for m in ${OLLAMA_GUARD_MODELS:-llama-guard3:8b granite3-guardian:8b qwen2.5vl:7b}; do
+          echo "pulling $$m"; ollama pull $$m || exit 1;
+        done
+    depends_on:
+      - ollama
+    restart: "no"
+
+  speaches:
+    image: ghcr.io/speaches-ai/speaches:${SPEACHES_VERSION:-latest-cpu}
+    environment:
+      PRELOAD_MODELS: '["${GUARDRAILS_MEDIA_TRANSCRIBE_MODEL:-Systran/faster-whisper-small}"]'
+    volumes:
+      - speaches-cache:/home/ubuntu/.cache/huggingface
+
+  promptguard:
+    image: ghcr.io/huggingface/text-embeddings-inference:${TEI_VERSION:-cpu-1.8}
+    command: ["--model-id", "meta-llama/Llama-Prompt-Guard-2-86M", "--port", "80"]
+    environment:
+      HF_TOKEN: ${HF_TOKEN:-}
+    volumes:
+      - tei-cache:/data
+
+volumes:
+  ollama-models:
+  speaches-cache:
+  tei-cache:

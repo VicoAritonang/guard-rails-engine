@@ -188,3 +188,86 @@ guards:
       scan_bytes: 64000
       scan_injection: true
       escalate_injection: true
+
+  # --- Multimodal ingest -----------------------------------------------------------
+  # Attachments (images, PDF, Office, HTML, SVG, audio, video) are turned into
+  # text before the stage runs, so every guard above reads them. These two
+  # guards grade what only exists in files: macros, active content, hidden
+  # text, remote templates, decompression bombs, polyglots, unsafe images, and
+  # content the gateway could not read. See docs/multimodal.md.
+  media:
+    enabled: true
+    fail_mode: closed
+    actions: { info: flag, low: flag, medium: flag, high: block, critical: block }
+    categories:
+      media.metadata_text: { severity: info, action: flag }
+      # Uncomment to refuse attachments nobody could read (no OCR configured,
+      # scanned PDF, encrypted file) instead of flagging them:
+      # media.unscannable: { action: block }
+    params:
+      max_parts: 16
+      max_part_bytes: 26214400       # 25 MB
+      max_total_bytes: 67108864      # 64 MB
+      max_pixels: 50000000           # refuse pixel bombs before decoding
+      max_extract_chars: 200000
+      max_audio_seconds: 1800
+      extract_timeout_seconds: 60
+      fetch_remote: false            # true = fetch image URLs (public IPs only)
+      fetch_allow_hosts: []
+      forward: native                # native | text (never send original bytes)
+      binary_redaction: replace_with_text   # replace_with_text | block | keep
+      ocr_scanned_documents: true
+
+  media_result:
+    enabled: true
+    fail_mode: closed
+    actions: { info: flag, low: flag, medium: flag, high: block, critical: block }
+
+  # --- Operator rules ----------------------------------------------------------------
+  # Keywords match on adversarially normalised text (homoglyphs, zero-width
+  # characters, leetspeak folded); patterns are RE2 regular expressions on the
+  # raw text. A rule's action is written into this guard's categories.
+  custom_rules:
+    enabled: false
+    actions: { low: flag, medium: flag, high: block, critical: block }
+    params:
+      rules:
+        - id: competitor
+          keywords: ["globex", "initech"]
+          severity: low
+          action: flag
+        - id: project-codename
+          patterns: ['(?i)\bproject\s+(?:nightingale|bluebird)\b']
+          severity: high
+          action: redact
+          replacement: "[INTERNAL PROJECT]"
+
+  custom_rules_outbound:
+    enabled: false
+    params:
+      rules:
+        - id: pricing-promise
+          patterns: ['(?i)\b(?:guarantee|promise)\w*\s+(?:a\s+)?(?:refund|discount)']
+          severity: medium
+
+  # --- URL filter --------------------------------------------------------------------
+  # The deterministic counterpart of OpenAI Guardrails' URL filter. With an
+  # empty allow list it still refuses credentials-in-URL, raw IPs, private
+  # addresses and non-https schemes.
+  url_filter:
+    enabled: false
+    params:
+      allow: []                      # e.g. ["example.com", "docs.example.com"]
+      deny: []
+      allowed_schemes: [https]
+      allow_subdomains: true
+      block_userinfo: true
+      block_ip_literals: true
+      block_private: true
+      severity: medium
+
+  url_filter_outbound:
+    enabled: false
+    params:
+      allow: []
+      allowed_schemes: [https, mailto]

@@ -11,7 +11,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/VicoAritonang/guard-rails-engine/internal/core"
+	"go.vicoworks.com/guard-rails-engine/internal/core"
 )
 
 // Pin is the hash of everything in a tool definition the model will read.

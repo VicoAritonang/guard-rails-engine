@@ -177,3 +177,23 @@ guards:
 
   restore:
     enabled: false               # masked values never come back
+
+  # --- Multimodal ingest ---------------------------------------------------------
+  # Unscannable attachments (no OCR backend, a scanned PDF, an encrypted file)
+  # are medium severity, so strict refuses them: content nobody read does not
+  # travel. Redacted attachments are always re-sent as their redacted text.
+  media:
+    enabled: true
+    fail_mode: closed
+    actions: { info: flag, low: flag, medium: block, high: block, critical: block }
+    params:
+      fetch_remote: false
+      forward: native
+      binary_redaction: replace_with_text
+      max_part_bytes: 15728640       # 15 MB
+      max_extract_chars: 150000
+
+  media_result:
+    enabled: true
+    fail_mode: closed
+    actions: { info: flag, low: flag, medium: block, high: block, critical: block }

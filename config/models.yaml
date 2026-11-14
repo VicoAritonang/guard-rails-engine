@@ -9,6 +9,16 @@
 # "groq:openai/gpt-oss-20b". A colon, not a slash: Groq's own ids contain
 # slashes, and "openai/..." would be ambiguous between a provider and a family.
 #
+# inputs lists the modalities a model accepts natively (text, image, audio,
+# document, video). Attachments of any other modality are sent to that route
+# as the text the gateway extracted from them, so a text-only fallback still
+# answers. Omit it to forward everything and let the upstream decide.
+#
+# guard names a safety classifier's output format (llama_guard, qwen3guard,
+# granite_guardian, nemotron, prompt_guard, policy); it is detected from the
+# model id when omitted. Use these aliases in GUARDRAILS_JUDGE_CLASSIFIERS and
+# GUARDRAILS_MEDIA_IMAGE_CLASSIFIERS.
+#
 # max_tokens matters on Groq: it reserves max_completion_tokens against the
 # tokens-per-minute limit before generating, so an oversized default exhausts
 # a free-tier minute in a single request.
@@ -22,6 +32,7 @@ models:
     effort: minimal
     max_tokens: 2048
     tier: medium
+    inputs: [text, image, document]
     fallbacks: [gpt-oss-120b]
     description: General purpose; falls back to Groq on an OpenAI outage.
   gpt-5-nano:
@@ -57,6 +68,7 @@ models:
     effort: low
     max_tokens: 1024
     tier: small
+    inputs: [text]
     fallbacks: [gpt-5-nano]
   gpt-oss-120b:
     provider: groq
@@ -64,6 +76,7 @@ models:
     effort: low
     max_tokens: 1024
     tier: medium
+    inputs: [text]
     fallbacks: [gpt-5-mini]
   qwen3-27b:
     provider: groq
@@ -91,3 +104,81 @@ models:
     max_tokens: 300             # reserved against Groq's tokens-per-minute limit
     tier: classifier
     description: Policy-following safety reasoner; the policy is in the prompt.
+  safeguard-120b:
+    provider: groq
+    model: openai/gpt-oss-safeguard-120b
+    effort: low
+    max_tokens: 300
+    tier: classifier
+    guard: policy
+    description: The larger policy-following reasoner; higher recall, ~3x the latency.
+  llama-guard-4:
+    provider: groq
+    model: meta-llama/llama-guard-4-12b
+    max_tokens: 32
+    tier: classifier
+    guard: llama_guard
+    inputs: [text, image]
+    description: MLCommons S1-S14 hazards, multilingual, text and images (multi-image prompts).
+
+  # --- Media readers -------------------------------------------------------------
+  vision-ocr:
+    provider: openai
+    model: gpt-4.1-mini
+    max_tokens: 2048
+    tier: classifier
+    inputs: [text, image]
+    fallbacks: [vision-ocr-groq]
+    description: Transcribes text in images and scanned pages (GUARDRAILS_MEDIA_OCR=vision-ocr).
+  vision-ocr-groq:
+    provider: groq
+    model: meta-llama/llama-4-scout-17b-16e-instruct
+    max_tokens: 2048
+    tier: classifier
+    inputs: [text, image]
+
+  # --- Self-hosted guard models (provider: local) ----------------------------------
+  # Served by vLLM, Ollama, TGI or NIM at LOCAL_BASE_URL. Without that variable
+  # these routes are dropped at startup and listed in the log. The model ids are
+  # the Hugging Face ids vLLM uses; with Ollama, use the tag you pulled
+  # (e.g. llama-guard3:8b, granite3-guardian:8b).
+  qwen3guard-4b:
+    provider: local
+    model: Qwen/Qwen3Guard-Gen-4B
+    max_tokens: 64
+    tier: classifier
+    guard: qwen3guard
+    description: Top recall in the 2026 open-guard benchmark (counts Controversial as unsafe).
+  granite-guardian:
+    provider: local
+    model: ibm-granite/granite-guardian-3.3-8b
+    max_tokens: 64
+    tier: classifier
+    guard: granite_guardian
+    risk: harm
+  granite-guardian-jailbreak:
+    provider: local
+    model: ibm-granite/granite-guardian-3.3-8b
+    max_tokens: 64
+    tier: classifier
+    guard: granite_guardian
+    risk: jailbreak
+  nemotron-safety:
+    provider: local
+    model: nvidia/Nemotron-Content-Safety-Reasoning-4B
+    max_tokens: 256
+    tier: classifier
+    guard: nemotron
+  llama-guard-4-local:
+    provider: local
+    model: meta-llama/Llama-Guard-4-12B
+    max_tokens: 32
+    tier: classifier
+    guard: llama_guard
+    inputs: [text, image]
+  safeguard-20b-local:
+    provider: local
+    model: openai/gpt-oss-safeguard-20b
+    max_tokens: 300
+    tier: classifier
+    guard: policy

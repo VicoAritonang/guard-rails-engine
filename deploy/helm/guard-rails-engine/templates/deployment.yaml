@@ -1,0 +1,130 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "gre.fullname" . }}
+  labels:
+    {{- include "gre.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "gre.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "gre.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        # Roll the pods when the rendered configuration changes.
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      automountServiceAccountToken: false
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      containers:
+        - name: guardrails
+          image: {{ include "gre.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: GUARDRAILS_ADDR
+              value: ":8080"
+            - name: GUARDRAILS_POLICY
+              value: {{ include "gre.policyPath" . | quote }}
+            - name: GUARDRAILS_MODELS
+              value: {{ ternary "/etc/guardrails/custom/models.yaml" "/etc/guardrails/models.yaml" (not (empty .Values.models.inline)) | quote }}
+            - name: GUARDRAILS_PRICING
+              value: /etc/guardrails/pricing.yaml
+            {{- if .Values.mcp.inline }}
+            - name: GUARDRAILS_MCP
+              value: /etc/guardrails/custom/mcp.yaml
+            {{- end }}
+            {{- range $k, $v := .Values.env }}
+            {{- if ne (toString $v) "" }}
+            - name: {{ $k }}
+              value: {{ toString $v | quote }}
+            {{- end }}
+            {{- end }}
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- if or .Values.secret.existingSecret .Values.secret.create }}
+          envFrom:
+            - secretRef:
+                name: {{ include "gre.secretName" . }}
+          {{- end }}
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: log
+              mountPath: /var/log/guardrails
+            {{- if include "gre.hasConfig" . }}
+            - name: config
+              mountPath: /etc/guardrails/custom
+              readOnly: true
+            {{- end }}
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+        {{- with .Values.sidecars }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      volumes:
+        # Multipart uploads larger than 16 MB spill to a temp file.
+        - name: tmp
+          emptyDir:
+            sizeLimit: 256Mi
+        - name: log
+          emptyDir: {}
+        {{- if include "gre.hasConfig" . }}
+        - name: config
+          configMap:
+            name: {{ include "gre.fullname" . }}
+        {{- end }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

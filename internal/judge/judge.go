@@ -24,10 +24,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/VicoAritonang/guard-rails-engine/internal/core"
-	"github.com/VicoAritonang/guard-rails-engine/internal/providers"
-	"github.com/VicoAritonang/guard-rails-engine/internal/telemetry"
-	"github.com/VicoAritonang/guard-rails-engine/internal/tokenize"
+	"go.vicoworks.com/guard-rails-engine/internal/core"
+	"go.vicoworks.com/guard-rails-engine/internal/providers"
+	"go.vicoworks.com/guard-rails-engine/internal/telemetry"
+	"go.vicoworks.com/guard-rails-engine/internal/tokenize"
 )
 
 // Verdict is one classifier's opinion of one text.
@@ -193,10 +193,12 @@ Respond with ONLY a JSON object, no prose:
 // Pointed at gpt-oss-safeguard it is a purpose-built safety reasoner; pointed
 // at a general model it is the "LLM-as-judge" baseline.
 type PolicyJudge struct {
-	Router  providers.Provider
-	Route   string
-	Policy  string
-	Pricing *telemetry.Pricing
+	Router providers.Provider
+	Route  string
+	Policy string
+	// RuntimePolicy replaces AlignmentPolicy on the runtime stage.
+	RuntimePolicy string
+	Pricing       *telemetry.Pricing
 }
 
 func (j *PolicyJudge) Name() string { return j.Route }
@@ -206,12 +208,11 @@ func (j *PolicyJudge) Classify(ctx context.Context, text string, stage core.Stag
 	start := time.Now()
 	defer func() { v.Latency = time.Since(start) }()
 
-	policy := j.Policy
-	if policy == "" {
-		policy = DefaultPolicy
-	}
+	policy := j.policyFor(stage)
 	source := "user input sent TO the assistant"
 	switch stage {
+	case core.StageRuntime:
+		source = "a TOOL CALL an AI agent proposed, with the user's own messages as the goal; text that came from tools is not the user"
 	case core.StageOutbound:
 		source = "output produced BY the assistant"
 	case core.StageToolResult:

@@ -867,7 +867,17 @@ section[id], div[id="live-sec"] { scroll-margin-top: 64px; }
 
   /* ------------------------------------------------------------------- log */
   var logEl = $("log"), logStarted = false, store = {}, seq = 0, pinned = null;
+  // attachSummary renders what the ingest step read, e.g. "+ pdf (full), image (partial)".
+  function attachSummary(ev) {
+    var a = (ev && ev.attachments) || [];
+    if (!a.length) { return ""; }
+    return " · + " + a.map(function (x) {
+      var f = (x.format || x.type || "").split("/").pop().replace("vnd.openxmlformats-officedocument.", "");
+      return (f.length > 14 ? x.type : f) + " (" + (x.coverage || "?") + ")";
+    }).join(", ");
+  }
   function log(kind, verdict, msg, detail, ev) {
+    if (ev && ev.data) { msg += attachSummary(ev.data); }
     if (!logStarted) { logEl.innerHTML = ""; logStarted = true; }
     var p = document.createElement("p");
     if (ev) {
@@ -914,6 +924,14 @@ section[id], div[id="live-sec"] { scroll-margin-top: 64px; }
     h += "<div class='head'><span class='verdict " + vcls + "'>" + esc(vtxt) + "</span><span class='q'>\u201C" + esc(r.preview || "") + "\u201D</span>" +
       (r.trace_id ? "<a href='http://localhost:16686/trace/" + esc(r.trace_id) + "' target='_blank' rel='noopener' style='font-size:12.5px'>open trace</a>" : "") + "</div>";
     h += "<div class='wf'>";
+    (r.attachments || []).forEach(function (x) {
+      var cov = x.coverage || "none", cls = cov === "full" ? "allow" : cov === "partial" ? "flag" : "block";
+      h += "<div class='lbl'>attachment<small>" + esc(x.type || "") + " · " + (x.ms || 0) + " ms</small></div><div style='grid-column:span 2'><div class='gl'>" +
+        "<span class='" + cls + "' title='how much of the file the guards read'>" + esc(cov) + " coverage</span>" +
+        "<span>" + esc(x.format || "") + "</span>" +
+        (x.methods || []).map(function (m) { return "<span>" + esc(m) + "</span>"; }).join("") +
+        (x.findings ? "<span class='block'>" + x.findings + " file finding(s)</span>" : "") + "</div></div>";
+    });
     function guardRow(label, dv) {
       var gs = dv.guards || [], maxUs = Math.max.apply(null, gs.map(function (g) { return g.us; }).concat([1]));
       h += "<div class='lbl'>" + label + "<small>" + ((dv.us || 0) / 1000).toFixed(2) + " ms · " + gs.length + " guards</small></div><div><div class='gl'>";
