@@ -86,6 +86,11 @@ First public distribution.
 
 ### Fixed
 
+- Go toolchain 1.27.4 (GO-2026-6859, an HTTP/1 server crash in `net/http`'s
+  MaxBytesReader) and `google.golang.org/grpc` v1.83.2 (GO-2026-6443, a server
+  panic on a missing authority header). The Docker build image is re-pinned to
+  the 1.27.4 digest.
+
 - Importing `pkg/guardrails` compiled Prometheus, OpenTelemetry, gRPC and the
   OpenAI and Anthropic SDKs, none of which the library runs: the quota guard
   reached its price table through `internal/telemetry`, and the media package
