@@ -34,6 +34,7 @@ import (
 	"go.vicoworks.com/guard-rails-engine/internal/guards"
 	"go.vicoworks.com/guard-rails-engine/internal/judge"
 	"go.vicoworks.com/guard-rails-engine/internal/mcp"
+	"go.vicoworks.com/guard-rails-engine/internal/prices"
 	"go.vicoworks.com/guard-rails-engine/internal/providers"
 	"go.vicoworks.com/guard-rails-engine/internal/telemetry"
 )
@@ -43,7 +44,7 @@ type Options struct {
 	Engine   *guards.Engine
 	Policy   *config.Policy
 	Provider providers.Provider
-	Pricing  *telemetry.Pricing
+	Pricing  *prices.Table
 	Metrics  *telemetry.Metrics
 	Auditor  *telemetry.Auditor
 	Logger   *slog.Logger
@@ -139,7 +140,7 @@ func New(opts Options) (*Server, error) {
 		opts.MaxBodyBytes = 8 << 20 // 8 MiB
 	}
 	if opts.Pricing == nil {
-		opts.Pricing = telemetry.NewPricing()
+		opts.Pricing = prices.New()
 	}
 
 	s := &Server{

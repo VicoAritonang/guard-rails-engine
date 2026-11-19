@@ -49,6 +49,13 @@ First public distribution.
 - `deploy/cloudflare/go-vanity`: the Worker serving the `go.vicoworks.com` import path.
 - `docs/go-library.md`: the guide to importing the engine from another Go project.
 - `pkg/guardrails`: a public Go library that runs the engine in process.
+- Modular Go library: `pkg/guardrails/engine` plus the modules `textguard`,
+  `ruleguard`, `toolguard` and `mediaguard`, so a program compiles only the guards
+  it uses. `engine.New(engine.Options{}, textguard.Module())` builds a text-only
+  engine (3.3 MB, one third-party module); `Module(names...)` narrows a module to
+  single guards. `pkg/guardrails` is unchanged and loads every module.
+  `Engine.Guards()` lists what was compiled in, and `ErrNotLoaded` is returned
+  for a stage or an attachment no loaded module can check.
 - Python (`guard-rails-engine`) and JavaScript (`guard-rails-engine`) clients.
 - OpenAI compatibility on `/v1/chat/completions` and `/v1/models`: the `choices`
   response, `stream`, content parts, `max_completion_tokens`, system turns, and
@@ -66,6 +73,13 @@ First public distribution.
 
 ### Fixed
 
+- Importing `pkg/guardrails` compiled Prometheus, OpenTelemetry, gRPC and the
+  OpenAI and Anthropic SDKs, none of which the library runs: the quota guard
+  reached its price table through `internal/telemetry`, and the media package
+  imported the provider router for vision OCR. The price table is now
+  `internal/prices` and vision OCR lives in the gateway. A program that imports
+  the library goes from 42 `require` lines and a 29.6 MB binary to 3 and 8.4 MB,
+  and a test holds each public package to its dependency budget.
 - `golang.org/x/net` updated to clear 4 reachable vulnerabilities, and the toolchain
   moved off Go 1.25, which no longer receives security patches.
 - Addresses such as `127.1`, `2130706433` and `0x7f.0.0.1` were classified as public,

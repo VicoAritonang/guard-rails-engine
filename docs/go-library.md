@@ -20,6 +20,75 @@ Versions are git tags (`v0.1.0`, `v0.2.0`, ...). Pin one in `go.mod`; before
 v1.0 a minor version may contain breaking changes, and the CHANGELOG lists
 them.
 
+## 0. Compile only what you use
+
+`pkg/guardrails` loads every guard. That is the easy start, and the rest of
+this guide uses it. When a project needs less, build the same engine from
+`pkg/guardrails/engine` and the modules it uses; Go then compiles nothing
+else:
+
+| Module | Guards | Adds |
+|---|---|---|
+| `pkg/guardrails/textguard` | `pii`, `secrets`, `injection`, `topic`, `quota`, `tool_result`, `leak`, `restore`, `format`, `schema`, `grounding` | standard library only |
+| `pkg/guardrails/ruleguard` | `custom_rules*`, `url_filter*`: your own keyword, regex and URL rules | standard library only |
+| `pkg/guardrails/toolguard` | `tool_safety`, `tool_policy`, `loop_breaker`, `budget_breaker`; `Execute` and `Approve` | standard library only |
+| `pkg/guardrails/mediaguard` | `media`, `media_result`: PDF, Office, HTML, images, audio | `net/http`, a PDF and an HTML parser |
+
+The engine itself needs `gopkg.in/yaml.v3`, for policy files. Measured on a
+program that masks one email (windows/amd64, `-trimpath -ldflags='-s -w'`):
+
+| What the program imports | Binary | Third-party modules |
+|---|---|---|
+| `engine` + `textguard` | 3.3 MB | 1 |
+| `engine` + `textguard` + `toolguard` | 3.8 MB | 1 |
+| `engine` + `textguard` + `mediaguard` | 7.9 MB | 3 |
+| `pkg/guardrails` (everything) | 8.4 MB | 3 |
+
+```go
+import (
+	"go.vicoworks.com/guard-rails-engine/pkg/guardrails/engine"
+	"go.vicoworks.com/guard-rails-engine/pkg/guardrails/textguard"
+)
+
+g, err := engine.New(engine.Options{}, textguard.Module())
+in, err := g.Inbound(ctx, engine.Request{Messages: msgs})
+```
+
+A module takes guard names to narrow it further; with none it brings all of
+its guards:
+
+```go
+// Mask personal data on the way in, put it back on the way out. Nothing else.
+g, err := engine.New(engine.Options{}, textguard.Module(textguard.PII, textguard.Restore))
+fmt.Println(g.Guards()) // [pii restore]
+```
+
+Narrowing a module saves little code, because its guards share packages.
+What it changes is which guards exist at all. To keep a guard compiled in
+but off, disable it in the policy instead; that also lets an operator turn it
+back on without a rebuild.
+
+The types are shared: `guardrails.Request` is `engine.Request`, and a
+`*guardrails.Engine` embeds the `*engine.Engine` that module functions take.
+Moving between the two is a change of constructor, not of code.
+
+What a missing module does, so that leaving one out never fails silently:
+
+- A stage no loaded module checks (`Runtime` without `toolguard`) returns
+  `engine.ErrNotLoaded` instead of an empty "allow".
+- A request with attachments and no `mediaguard` returns `ErrNotLoaded`
+  instead of passing the file unread.
+- `toolguard.Execute` refuses before running the tool when nothing can scan
+  its result, so load `textguard` with it.
+- A policy may configure guards the build left out; they are ignored. A guard
+  name that does not exist at all is still an error, and so is an unknown
+  name passed to `Module`.
+
+With modules, the agent calls in section 4 are functions of `toolguard`
+(`toolguard.Execute(ctx, g, run, exec)`, `toolguard.Approve(g, call, who, why)`)
+and the media backends of section 2 are the argument of
+`mediaguard.Module(mediaguard.Backends{...})`.
+
 ## 1. Guard a model call
 
 ```go

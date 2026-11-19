@@ -5,13 +5,15 @@ import (
 
 	"bytes"
 	"encoding/json"
-	"go.vicoworks.com/guard-rails-engine/internal/cache"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"go.vicoworks.com/guard-rails-engine/internal/cache"
+	"go.vicoworks.com/guard-rails-engine/internal/prices"
 
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -49,7 +51,7 @@ func testServer(t *testing.T, apiKeys []string) http.Handler {
 		Engine:          engine,
 		Policy:          pol,
 		Provider:        providers.NewMock(providers.MockOptions{}),
-		Pricing:         telemetry.NewPricing(),
+		Pricing:         prices.New(),
 		Metrics:         metrics,
 		Auditor:         telemetry.NewAuditor(telemetry.AuditOptions{}),
 		Logger:          slog.New(slog.DiscardHandler),

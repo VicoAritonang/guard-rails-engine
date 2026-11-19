@@ -23,6 +23,7 @@ import (
 	"go.vicoworks.com/guard-rails-engine/internal/guards"
 	"go.vicoworks.com/guard-rails-engine/internal/guards/runtime"
 	"go.vicoworks.com/guard-rails-engine/internal/mcp"
+	"go.vicoworks.com/guard-rails-engine/internal/prices"
 	"go.vicoworks.com/guard-rails-engine/internal/server"
 	"go.vicoworks.com/guard-rails-engine/internal/telemetry"
 )
@@ -90,7 +91,7 @@ func run() error {
 		"name", pol.Name, "version", pol.Version, "source", pol.Path(),
 		"guards_enabled", len(pol.EnabledGuards()))
 
-	pricing, err := telemetry.LoadPricing(cfg.PricingPath)
+	pricing, err := prices.Load(cfg.PricingPath)
 	if err != nil {
 		return err
 	}

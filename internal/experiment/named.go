@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"go.vicoworks.com/guard-rails-engine/config"
+	"go.vicoworks.com/guard-rails-engine/internal/prices"
 	"go.vicoworks.com/guard-rails-engine/internal/providers"
-	"go.vicoworks.com/guard-rails-engine/internal/telemetry"
 )
 
 // Spec describes one experiment for people choosing which to run: what it
@@ -112,7 +112,7 @@ func (rc RunConfig) Quickened() RunConfig {
 }
 
 // RunNamed runs one experiment and writes it to the ledger.
-func RunNamed(ctx context.Context, cfg *config.Config, router *providers.Router, pricing *telemetry.Pricing,
+func RunNamed(ctx context.Context, cfg *config.Config, router *providers.Router, pricing *prices.Table,
 	rc RunConfig, name string, log io.Writer) (*Result, string, error) {
 	spec, ok := SpecFor(name)
 	if !ok {

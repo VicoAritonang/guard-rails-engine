@@ -1,4 +1,4 @@
-package telemetry
+package prices
 
 import (
 	"math"
@@ -15,7 +15,7 @@ func approx(t *testing.T, got, want float64, label string) {
 }
 
 func TestOpenAICost(t *testing.T) {
-	p := NewPricing()
+	p := New()
 
 	// gpt-5: $1.25 input / $10 output per 1M tokens.
 	cost := p.Cost("gpt-5", core.Usage{InputTokens: 1_000_000, OutputTokens: 1_000_000})
@@ -29,7 +29,7 @@ func TestOpenAICost(t *testing.T) {
 // table. OpenAI's cached input is 10% of the input rate on the GPT-5 family;
 // billing it as ordinary input would overstate a cache-heavy workload tenfold.
 func TestCachedInputIsPricedSeparately(t *testing.T) {
-	p := NewPricing()
+	p := New()
 
 	full := p.Cost("gpt-5", core.Usage{InputTokens: 1_000_000})
 	cached := p.Cost("gpt-5", core.Usage{CacheReadTokens: 1_000_000})
@@ -45,7 +45,7 @@ func TestCachedInputIsPricedSeparately(t *testing.T) {
 // explicit per-model cache rates with one global multiplier: the discount is
 // 10% on GPT-5, 25% on GPT-4.1 and 50% on GPT-4o.
 func TestCacheDiscountsDifferPerVendor(t *testing.T) {
-	p := NewPricing()
+	p := New()
 	cases := map[string]float64{
 		"gpt-5":   0.10,
 		"gpt-4.1": 0.25,
@@ -66,7 +66,7 @@ func TestCacheDiscountsDifferPerVendor(t *testing.T) {
 // TestModelPrefixMatching: dated snapshots must resolve, and the longest
 // prefix must win so gpt-5-mini is never priced as gpt-5 (a 5x error).
 func TestModelPrefixMatching(t *testing.T) {
-	p := NewPricing()
+	p := New()
 	cases := map[string]float64{
 		"gpt-5":                   1.25,
 		"gpt-5-2025-08-07":        1.25,
@@ -99,7 +99,7 @@ func TestModelPrefixMatching(t *testing.T) {
 // the correct behaviour, but silently is not -- an operator needs to know their
 // cost dashboard has a blind spot.
 func TestUnknownModelIsTrackedNotGuessed(t *testing.T) {
-	p := NewPricing()
+	p := New()
 
 	if cost := p.Cost("some-model-nobody-added", core.Usage{InputTokens: 1_000_000}); cost != 0 {
 		t.Errorf("an unpriced model should cost 0, got %.4f", cost)
@@ -120,7 +120,7 @@ func TestUnknownModelIsTrackedNotGuessed(t *testing.T) {
 }
 
 func TestAnthropicCacheMultiplierFallback(t *testing.T) {
-	p := NewPricing()
+	p := New()
 	// Anthropic entries omit explicit cache rates, so the standard multipliers
 	// apply: reads at 0.1x input, writes at 1.25x.
 	read := p.Cost("claude-opus-5", core.Usage{CacheReadTokens: 1_000_000})
@@ -130,7 +130,7 @@ func TestAnthropicCacheMultiplierFallback(t *testing.T) {
 }
 
 func TestInputCostForQuotaEstimate(t *testing.T) {
-	p := NewPricing()
+	p := New()
 	approx(t, p.InputCost("gpt-5", 200_000), 0.25, "gpt-5 200k input estimate")
 	if p.InputCost("unpriced-model", 1_000_000) != 0 {
 		t.Error("an unpriced model should estimate 0")
@@ -138,7 +138,7 @@ func TestInputCostForQuotaEstimate(t *testing.T) {
 }
 
 func TestContextWindows(t *testing.T) {
-	p := NewPricing()
+	p := New()
 	if got := p.ContextWindow("gpt-5"); got != 400_000 {
 		t.Errorf("gpt-5 context window = %d", got)
 	}
@@ -153,7 +153,7 @@ func TestContextWindows(t *testing.T) {
 // TestShippedPricingOverrideLoads guards against the documented example
 // drifting from the loader. Operators copy this file, so it has to parse.
 func TestShippedPricingOverrideLoads(t *testing.T) {
-	p, err := LoadPricing("../../config/pricing.yaml")
+	p, err := Load("../../config/pricing.yaml")
 	if err != nil {
 		t.Fatalf("config/pricing.yaml does not load: %v", err)
 	}

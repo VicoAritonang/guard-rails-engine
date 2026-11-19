@@ -35,8 +35,8 @@ import (
 	"go.vicoworks.com/guard-rails-engine/config"
 	"go.vicoworks.com/guard-rails-engine/internal/core"
 	"go.vicoworks.com/guard-rails-engine/internal/guards"
+	"go.vicoworks.com/guard-rails-engine/internal/prices"
 	"go.vicoworks.com/guard-rails-engine/internal/providers"
-	"go.vicoworks.com/guard-rails-engine/internal/telemetry"
 	"go.vicoworks.com/guard-rails-engine/internal/tokenize"
 )
 
@@ -44,7 +44,7 @@ import (
 type Env struct {
 	Cfg     *config.Config
 	Router  *providers.Router
-	Pricing *telemetry.Pricing
+	Pricing *prices.Table
 	Policy  *config.Policy
 	Engine  *guards.Engine
 	Secret  []byte
@@ -57,7 +57,7 @@ type Env struct {
 }
 
 // NewEnv builds the engine from the balanced policy (or cfg's policy).
-func NewEnv(cfg *config.Config, router *providers.Router, pricing *telemetry.Pricing, cacheDir string, fresh bool, log io.Writer) (*Env, error) {
+func NewEnv(cfg *config.Config, router *providers.Router, pricing *prices.Table, cacheDir string, fresh bool, log io.Writer) (*Env, error) {
 	pol := config.DefaultPolicy()
 	if cfg.PolicyPath != "" {
 		p, err := config.LoadPolicy(cfg.PolicyPath)
@@ -100,7 +100,7 @@ type Recorder struct {
 	CacheHits int
 	// CostUSD is spend on calls actually made in this run (replays are free).
 	CostUSD float64
-	pricing *telemetry.Pricing
+	pricing *prices.Table
 }
 
 func (r *Recorder) Name() string { return "recorder" }

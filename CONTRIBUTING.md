@@ -62,11 +62,12 @@ follows a [code of conduct](CODE_OF_CONDUCT.md).
 
 | Path | What it holds |
 |---|---|
-| `pkg/guardrails` | Public Go library: the engine, in process |
+| `pkg/guardrails` | Public Go library: the engine, in process, every module loaded |
+| `pkg/guardrails/engine` | The library's core; `textguard`, `ruleguard`, `toolguard`, `mediaguard` beside it are its modules |
 | `pkg/sdk` | Public Go client for a running gateway |
 | `sdks/python`, `sdks/js` | Clients for other languages |
 | `config/` | Policy engine, environment config, shipped profiles |
-| `internal/guards` | The guards, one package per stage |
+| `internal/guards` | The guards, one package per stage; each exports a `Module()`, and `registry` assembles them |
 | `internal/agent` | Tool catalog, risk tiers, taint, approvals, broker |
 | `internal/mcp` | MCP gateway and agent runtime |
 | `internal/server` | HTTP surface, including the OpenAI-compatible proxy |

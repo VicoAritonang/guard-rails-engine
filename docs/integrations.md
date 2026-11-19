@@ -206,6 +206,11 @@ return out.Completion
 Pass `Options.Policy` to change the policy: `config.StrictPolicy()`, or
 `config.LoadPolicy("policy.yaml")` for your own.
 
+`guardrails.New` loads every guard. To compile fewer (a text-only build is
+3.3 MB and needs no PDF parser or `net/http`), build from
+`pkg/guardrails/engine` and the modules you use; see
+[compile only what you use](go-library.md#0-compile-only-what-you-use).
+
 ## Deploying
 
 | Target | Start from |

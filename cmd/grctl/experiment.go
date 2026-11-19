@@ -11,7 +11,7 @@ import (
 	"go.vicoworks.com/guard-rails-engine/config"
 	"go.vicoworks.com/guard-rails-engine/internal/experiment"
 	"go.vicoworks.com/guard-rails-engine/internal/gateway"
-	"go.vicoworks.com/guard-rails-engine/internal/telemetry"
+	"go.vicoworks.com/guard-rails-engine/internal/prices"
 )
 
 func runExperiment(ctx context.Context, args []string) error {
@@ -70,7 +70,7 @@ func runExperiment(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
-	pricing, err := telemetry.LoadPricing(cfg.PricingPath)
+	pricing, err := prices.Load(cfg.PricingPath)
 	if err != nil {
 		return err
 	}

@@ -1,6 +1,10 @@
-// Package telemetry turns guard activity into numbers an operator can act on:
-// cost, latency, detection rates, and traces.
-package telemetry
+// Package prices maps model names to token prices and computes request cost.
+//
+// The quota guard reads it, and the quota guard ships in the embeddable
+// library, so this package must stay free of telemetry and provider imports:
+// one of them here puts Prometheus, OpenTelemetry and gRPC in the build of
+// every program that imports pkg/guardrails.
+package prices
 
 import (
 	"fmt"
@@ -113,8 +117,8 @@ const (
 	cacheReadMultiplier  = 0.10
 )
 
-// Pricing resolves a model name to a price and computes request cost.
-type Pricing struct {
+// Table resolves a model name to a price and computes request cost.
+type Table struct {
 	mu     sync.RWMutex
 	prices map[string]ModelPrice
 	// unknown accumulates model names with no price entry, so an operator can
@@ -123,9 +127,9 @@ type Pricing struct {
 	unknown map[string]int
 }
 
-// NewPricing returns the built-in table.
-func NewPricing() *Pricing {
-	p := &Pricing{
+// New returns the built-in table.
+func New() *Table {
+	p := &Table{
 		prices:  make(map[string]ModelPrice, len(defaultPrices)),
 		unknown: map[string]int{},
 	}
@@ -135,9 +139,9 @@ func NewPricing() *Pricing {
 	return p
 }
 
-// LoadPricing overlays a YAML price file on the defaults.
-func LoadPricing(path string) (*Pricing, error) {
-	p := NewPricing()
+// Load overlays a YAML price file on the defaults.
+func Load(path string) (*Table, error) {
+	p := New()
 	if path == "" {
 		return p, nil
 	}
@@ -165,7 +169,7 @@ func LoadPricing(path string) (*Pricing, error) {
 // Callers pass whatever the client sent: "claude-opus-5", a dated snapshot, or
 // a Bedrock-prefixed id like "anthropic.claude-opus-5". Normalising here means
 // no other package has to know the shape of a model id.
-func (p *Pricing) Price(model string) (ModelPrice, bool) {
+func (p *Table) Price(model string) (ModelPrice, bool) {
 	if model == "" {
 		return ModelPrice{}, false
 	}
@@ -212,7 +216,7 @@ func normalizeModel(m string) string {
 }
 
 // Cost computes the USD cost of a completed request.
-func (p *Pricing) Cost(model string, u core.Usage) float64 {
+func (p *Table) Cost(model string, u core.Usage) float64 {
 	mp, ok := p.Price(model)
 	if !ok {
 		return 0
@@ -236,7 +240,7 @@ func (p *Pricing) Cost(model string, u core.Usage) float64 {
 
 // InputCost prices an input-token estimate, used by the quota guard before the
 // request is sent and no usage figures exist yet.
-func (p *Pricing) InputCost(model string, tokens int) float64 {
+func (p *Table) InputCost(model string, tokens int) float64 {
 	mp, ok := p.Price(model)
 	if !ok {
 		return 0
@@ -245,13 +249,13 @@ func (p *Pricing) InputCost(model string, tokens int) float64 {
 }
 
 // ContextWindow reports the model's input limit, or 0 if unknown.
-func (p *Pricing) ContextWindow(model string) int {
+func (p *Table) ContextWindow(model string) int {
 	mp, _ := p.Price(model)
 	return mp.ContextWindow
 }
 
 // UnknownModels lists models seen with no price entry, most frequent first.
-func (p *Pricing) UnknownModels() []string {
+func (p *Table) UnknownModels() []string {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	type kv struct {
@@ -271,7 +275,7 @@ func (p *Pricing) UnknownModels() []string {
 }
 
 // Models lists priced model names.
-func (p *Pricing) Models() []string {
+func (p *Table) Models() []string {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	out := make([]string, 0, len(p.prices))

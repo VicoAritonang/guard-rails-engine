@@ -16,6 +16,7 @@ import (
 	"go.vicoworks.com/guard-rails-engine/internal/cache"
 	"go.vicoworks.com/guard-rails-engine/internal/core"
 	"go.vicoworks.com/guard-rails-engine/internal/judge"
+	"go.vicoworks.com/guard-rails-engine/internal/prices"
 	"go.vicoworks.com/guard-rails-engine/internal/providers"
 	"go.vicoworks.com/guard-rails-engine/internal/telemetry"
 )
@@ -144,7 +145,7 @@ func providerOptions(cfg *config.Config) providers.Options {
 // plus the special name "moderation". An alias whose tier is "classifier" and
 // whose upstream is a Prompt Guard model gets the probability parser; every
 // other alias is driven as a policy judge.
-func BuildClassifier(name string, r *providers.Router, cfg *config.Config, pricing *telemetry.Pricing) (judge.Classifier, error) {
+func BuildClassifier(name string, r *providers.Router, cfg *config.Config, pricing *prices.Table) (judge.Classifier, error) {
 	if name == "moderation" || name == "openai-moderation" {
 		m, err := providers.NewModeration(cfg.OpenAIAPIKey)
 		if err != nil {
@@ -179,7 +180,7 @@ func BuildClassifier(name string, r *providers.Router, cfg *config.Config, prici
 }
 
 // BuildTier constructs the semantic tier from configuration.
-func BuildTier(cfg *config.Config, r *providers.Router, pricing *telemetry.Pricing, obs judge.Observer, logger *slog.Logger) (*judge.Tier, error) {
+func BuildTier(cfg *config.Config, r *providers.Router, pricing *prices.Table, obs judge.Observer, logger *slog.Logger) (*judge.Tier, error) {
 	mode, err := judge.ParseMode(cfg.JudgeMode)
 	if err != nil {
 		return nil, err
@@ -229,8 +230,7 @@ func BuildCaches(cfg *config.Config, logger *slog.Logger) (*cache.Exact, *cache.
 }
 
 // JudgeObserver adapts telemetry.Metrics and the logger to judge.Observer.
-// It lives here rather than in telemetry because judge imports telemetry for
-// pricing, and the reverse import would be a cycle.
+// It lives here so that telemetry does not have to import judge.
 type JudgeObserver struct {
 	Metrics *telemetry.Metrics
 	Logger  *slog.Logger

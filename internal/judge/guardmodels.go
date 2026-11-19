@@ -14,8 +14,8 @@ import (
 	"time"
 
 	"go.vicoworks.com/guard-rails-engine/internal/core"
+	"go.vicoworks.com/guard-rails-engine/internal/prices"
 	"go.vicoworks.com/guard-rails-engine/internal/providers"
-	"go.vicoworks.com/guard-rails-engine/internal/telemetry"
 	"go.vicoworks.com/guard-rails-engine/internal/tokenize"
 )
 
@@ -83,7 +83,7 @@ type GuardModel struct {
 	Router  providers.Provider
 	Route   string
 	Format  string
-	Pricing *telemetry.Pricing
+	Pricing *prices.Table
 	// Risk is the Granite Guardian risk definition to check ("harm",
 	// "jailbreak", "social_bias", "groundedness", ...). Default: "harm".
 	Risk string

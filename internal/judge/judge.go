@@ -25,8 +25,8 @@ import (
 	"time"
 
 	"go.vicoworks.com/guard-rails-engine/internal/core"
+	"go.vicoworks.com/guard-rails-engine/internal/prices"
 	"go.vicoworks.com/guard-rails-engine/internal/providers"
-	"go.vicoworks.com/guard-rails-engine/internal/telemetry"
 	"go.vicoworks.com/guard-rails-engine/internal/tokenize"
 )
 
@@ -64,7 +64,7 @@ type PromptGuard struct {
 	Router    providers.Provider
 	Route     string
 	Threshold float64
-	Pricing   *telemetry.Pricing
+	Pricing   *prices.Table
 	// WindowChars approximates 400 tokens, leaving headroom under 512 for
 	// tokenizer disagreement on non-English text.
 	WindowChars int
@@ -198,7 +198,7 @@ type PolicyJudge struct {
 	Policy string
 	// RuntimePolicy replaces AlignmentPolicy on the runtime stage.
 	RuntimePolicy string
-	Pricing       *telemetry.Pricing
+	Pricing       *prices.Table
 }
 
 func (j *PolicyJudge) Name() string { return j.Route }

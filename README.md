@@ -90,6 +90,13 @@ g, _ := guardrails.New(guardrails.Options{})
 in, err := g.Inbound(ctx, guardrails.Request{Messages: messages})
 ```
 
+A small project can compile only the guards it uses, from 3.3 MB with no
+dependency beyond YAML ([choosing modules](docs/go-library.md#0-compile-only-what-you-use)):
+
+```go
+g, _ := engine.New(engine.Options{}, textguard.Module(textguard.PII, textguard.Restore))
+```
+
 **Guard an agent's tools.** `POST /mcp` sits in front of your MCP servers, for
 Claude, Cursor and any other MCP client.
 
@@ -1014,7 +1021,8 @@ internal/judge    semantic tier: Prompt Guard, Llama Guard, Qwen3Guard, Granite,
 internal/eval     dataset, harness, confusion matrix, sweep, red team, reports
 internal/telemetry Prometheus, OpenTelemetry, cost engine, audit log
 internal/providers openai · anthropic · groq · local (vLLM/Ollama) · mock · replay
-pkg/guardrails    public Go library: the engine, in process
+pkg/guardrails    public Go library: the engine, in process, every module loaded
+      ├ engine    the core alone; textguard/ ruleguard/ toolguard/ mediaguard/ are its modules
 pkg/sdk           Go client for sidecar mode
 sdks/             Python and JavaScript clients
 deploy/           compose (+ local guard models), Helm, Kubernetes, Grafana, Prometheus

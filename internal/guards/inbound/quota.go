@@ -6,7 +6,7 @@ import (
 
 	"go.vicoworks.com/guard-rails-engine/config"
 	"go.vicoworks.com/guard-rails-engine/internal/core"
-	"go.vicoworks.com/guard-rails-engine/internal/telemetry"
+	"go.vicoworks.com/guard-rails-engine/internal/prices"
 	"go.vicoworks.com/guard-rails-engine/internal/tokenize"
 )
 
@@ -24,10 +24,10 @@ type Quota struct {
 	maxMessages int
 	maxChars    int
 	maxCostUSD  float64
-	pricing     *telemetry.Pricing
+	pricing     *prices.Table
 }
 
-func NewQuota(cfg *config.GuardConfig, pricing *telemetry.Pricing) (*Quota, error) {
+func NewQuota(cfg *config.GuardConfig, pricing *prices.Table) (*Quota, error) {
 	q := &Quota{
 		cfg:         cfg,
 		maxTokens:   cfg.Int("max_input_tokens", 200000),
