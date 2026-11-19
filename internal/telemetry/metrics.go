@@ -8,8 +8,8 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 
-	"go.vicoworks.com/guard-rails-engine/internal/core"
-	"go.vicoworks.com/guard-rails-engine/internal/providers"
+	"go.vicoworks.com/guard-rails/internal/core"
+	"go.vicoworks.com/guard-rails/internal/providers"
 )
 
 // Metrics implements core.Observer and exports Prometheus series.

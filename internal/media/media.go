@@ -33,8 +33,8 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"go.vicoworks.com/guard-rails-engine/config"
-	"go.vicoworks.com/guard-rails-engine/internal/core"
+	"go.vicoworks.com/guard-rails/config"
+	"go.vicoworks.com/guard-rails/internal/core"
 )
 
 // GuardName is the guard that reports ingest findings on the inbound stage,

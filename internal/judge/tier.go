@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"go.vicoworks.com/guard-rails-engine/internal/core"
+	"go.vicoworks.com/guard-rails/internal/core"
 )
 
 // Mode decides when the semantic tier runs.

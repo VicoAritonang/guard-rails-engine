@@ -7,9 +7,9 @@ import (
 	"path/filepath"
 	"time"
 
-	"go.vicoworks.com/guard-rails-engine/config"
-	"go.vicoworks.com/guard-rails-engine/internal/prices"
-	"go.vicoworks.com/guard-rails-engine/internal/providers"
+	"go.vicoworks.com/guard-rails/config"
+	"go.vicoworks.com/guard-rails/internal/prices"
+	"go.vicoworks.com/guard-rails/internal/providers"
 )
 
 // Spec describes one experiment for people choosing which to run: what it

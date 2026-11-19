@@ -2,7 +2,7 @@ name: release
 
 # Pushing a tag such as v0.1.0 publishes everything from that commit:
 #
-#   Go module      the tag is the release: go get go.vicoworks.com/guard-rails-engine@v0.1.0
+#   Go module      the tag is the release: go get go.vicoworks.com/guard-rails@v0.1.0
 #                  (the go-module job checks the vanity path and warms proxy.golang.org)
 #   binaries       attached to a GitHub Release, with checksums
 #   Docker image   ghcr.io/vicoaritonang/guard-rails-engine, amd64 and arm64
@@ -63,7 +63,7 @@ jobs:
                 -ldflags "-s -w -X main.version=${GITHUB_REF_NAME}" \
                 -o "dist/$dir/$cmd$ext" "./cmd/$cmd"
             done
-            cp -r LICENSE README.md config/policies "dist/$dir/"
+            cp -r LICENSE NOTICE README.md config/policies "dist/$dir/"
             tar -C dist -czf "dist/$dir.tar.gz" "$dir"
             rm -rf "dist/$dir"
           done
@@ -167,7 +167,7 @@ jobs:
     needs: verify
     runs-on: ubuntu-latest
     env:
-      MODULE: go.vicoworks.com/guard-rails-engine
+      MODULE: go.vicoworks.com/guard-rails
     steps:
       # The module is published by the tag itself; this job checks that the
       # vanity import path still points at this repository and asks the public

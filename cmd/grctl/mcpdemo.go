@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"time"
 
-	"go.vicoworks.com/guard-rails-engine/internal/mcp"
+	"go.vicoworks.com/guard-rails/internal/mcp"
 )
 
 // runMCPDemo serves the hostile demo MCP server the gateway is tested against.

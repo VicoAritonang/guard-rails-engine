@@ -19,7 +19,7 @@ func TestDependencyBudget(t *testing.T) {
 		t.Skip("go toolchain not on PATH")
 	}
 
-	const mod = "go.vicoworks.com/guard-rails-engine/"
+	const mod = "go.vicoworks.com/guard-rails/"
 	light := []string{"gopkg.in/yaml.v3"}
 	withMedia := append([]string{"github.com/ledongthuc/pdf", "golang.org/x/net/html"}, light...)
 

@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	"go.vicoworks.com/guard-rails-engine/internal/experiment"
+	"go.vicoworks.com/guard-rails/internal/experiment"
 )
 
 // Lab runs experiments on behalf of the web page.

@@ -8,10 +8,10 @@ import (
 	"time"
 	"unicode"
 
-	"go.vicoworks.com/guard-rails-engine/internal/core"
-	"go.vicoworks.com/guard-rails-engine/internal/guards/outbound"
-	"go.vicoworks.com/guard-rails-engine/internal/judge"
-	"go.vicoworks.com/guard-rails-engine/internal/providers"
+	"go.vicoworks.com/guard-rails/internal/core"
+	"go.vicoworks.com/guard-rails/internal/guards/outbound"
+	"go.vicoworks.com/guard-rails/internal/judge"
+	"go.vicoworks.com/guard-rails/internal/providers"
 )
 
 // Canary is the secret the target system prompt must not reveal. It is random

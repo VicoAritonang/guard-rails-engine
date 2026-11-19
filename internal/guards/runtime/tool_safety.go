@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"go.vicoworks.com/guard-rails-engine/config"
-	"go.vicoworks.com/guard-rails-engine/internal/agent"
-	"go.vicoworks.com/guard-rails-engine/internal/core"
+	"go.vicoworks.com/guard-rails/config"
+	"go.vicoworks.com/guard-rails/internal/agent"
+	"go.vicoworks.com/guard-rails/internal/core"
 )
 
 // ToolSafety applies the tool-level control plane to a proposed call.

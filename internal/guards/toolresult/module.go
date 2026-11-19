@@ -1,9 +1,9 @@
 package toolresult
 
 import (
-	"go.vicoworks.com/guard-rails-engine/config"
-	"go.vicoworks.com/guard-rails-engine/internal/core"
-	"go.vicoworks.com/guard-rails-engine/internal/guards/registry"
+	"go.vicoworks.com/guard-rails/config"
+	"go.vicoworks.com/guard-rails/internal/core"
+	"go.vicoworks.com/guard-rails/internal/guards/registry"
 )
 
 // Module provides the tool-result guard.

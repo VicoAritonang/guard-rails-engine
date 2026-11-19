@@ -19,7 +19,9 @@ import (
 // touching security rules, and a security engineer can change a rule without
 // learning the deployment.
 type Config struct {
-	Addr            string
+	Addr string
+	// GRPCAddr, when set, also serves the gRPC API (guardrails.v1) there.
+	GRPCAddr        string
 	RequestTimeout  time.Duration
 	ShutdownTimeout time.Duration
 	DrainDelay      time.Duration
@@ -164,6 +166,7 @@ func FromEnv() (*Config, error) {
 	c := &Config{
 		EnvFile:         loaded,
 		Addr:            envStr("GUARDRAILS_ADDR", "127.0.0.1:8080"),
+		GRPCAddr:        envStr("GUARDRAILS_GRPC_ADDR", ""),
 		RequestTimeout:  envDur("GUARDRAILS_REQUEST_TIMEOUT", 60*time.Second),
 		ShutdownTimeout: envDur("GUARDRAILS_SHUTDOWN_TIMEOUT", 25*time.Second),
 		DrainDelay:      envDur("GUARDRAILS_DRAIN_DELAY", 2*time.Second),
@@ -335,18 +338,27 @@ func (c *Config) WeakSecret() bool { return publishedSecrets[string(c.Secret)] }
 // process rather than scroll past as a warning. A loopback address is exempt,
 // and GUARDRAILS_INSECURE_DEV covers a container published on loopback only.
 func (c *Config) CheckExposure() error {
-	if c.InsecureDev || loopbackAddr(c.Addr) {
+	if c.InsecureDev {
 		return nil
+	}
+	// The gRPC listener answers with the same keys and the same secret, so it
+	// exposes exactly as much as the HTTP one.
+	addr := c.Addr
+	if loopbackAddr(addr) {
+		if c.GRPCAddr == "" || loopbackAddr(c.GRPCAddr) {
+			return nil
+		}
+		addr = c.GRPCAddr
 	}
 	if c.WeakSecret() {
 		return fmt.Errorf("GUARDRAILS_SECRET is a published example value and %s is reachable from the network: "+
-			"generate one with `openssl rand -hex 32`", c.Addr)
+			"generate one with `openssl rand -hex 32`", addr)
 	}
 	upstream := c.Provider != "mock" || c.OpenAIAPIKey != "" || c.AnthropicAPIKey != "" || c.GroqAPIKey != ""
 	if len(c.APIKeys) == 0 && upstream {
 		return fmt.Errorf("no GUARDRAILS_API_KEYS set and %s is reachable from the network, so anyone could spend "+
 			"your provider quota: set API keys, listen on 127.0.0.1, or set GUARDRAILS_INSECURE_DEV=true "+
-			"for a port published on loopback only", c.Addr)
+			"for a port published on loopback only", addr)
 	}
 	return nil
 }

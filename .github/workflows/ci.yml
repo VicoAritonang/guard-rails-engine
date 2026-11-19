@@ -133,6 +133,45 @@ jobs:
         if: always()
         run: cat build/experiments/runs/*/report.md >> "$GITHUB_STEP_SUMMARY" || true
 
+  api-contract:
+    # The REST spec, the protobuf schema and the Go types are one contract.
+    # The Go tests check they agree; this job checks the protobuf side on its
+    # own terms: style, generated code that matches the .proto, and, on a pull
+    # request, no change that would break a client generated from main.
+    name: api contract
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Install buf and the protoc plugins
+        run: |
+          make api-tools
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      - name: Lint and format
+        working-directory: api/proto
+        run: buf lint && buf format -d --exit-code
+      - name: No breaking change against main
+        if: github.event_name == 'pull_request'
+        working-directory: api/proto
+        run: |
+          if git cat-file -e origin/main:api/proto/buf.yaml 2>/dev/null; then
+            buf breaking --against '../../.git#ref=refs/remotes/origin/main,subdir=api/proto'
+          else
+            echo "main has no api/proto yet; nothing to compare against"
+          fi
+      - name: Generated code is current
+        run: |
+          (cd api/proto && buf generate)
+          git diff --exit-code pkg/api || (echo "pkg/api is stale; run: make api" && exit 1)
+      - name: Contract tests
+        run: go test -count=1 -run 'OpenAPI|Proto|Enums|Wire|GRPC' ./internal/server/
+
   vulnerabilities:
     # A guardrail with a known hole in its own dependencies is a poor look, and
     # the scan only reports what the code can actually reach.

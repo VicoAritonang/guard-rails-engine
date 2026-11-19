@@ -12,13 +12,13 @@ import (
 	"log/slog"
 	"strings"
 
-	"go.vicoworks.com/guard-rails-engine/config"
-	"go.vicoworks.com/guard-rails-engine/internal/cache"
-	"go.vicoworks.com/guard-rails-engine/internal/core"
-	"go.vicoworks.com/guard-rails-engine/internal/judge"
-	"go.vicoworks.com/guard-rails-engine/internal/prices"
-	"go.vicoworks.com/guard-rails-engine/internal/providers"
-	"go.vicoworks.com/guard-rails-engine/internal/telemetry"
+	"go.vicoworks.com/guard-rails/config"
+	"go.vicoworks.com/guard-rails/internal/cache"
+	"go.vicoworks.com/guard-rails/internal/core"
+	"go.vicoworks.com/guard-rails/internal/judge"
+	"go.vicoworks.com/guard-rails/internal/prices"
+	"go.vicoworks.com/guard-rails/internal/providers"
+	"go.vicoworks.com/guard-rails/internal/telemetry"
 )
 
 // Upstream bundles everything on the provider side of the gateway.

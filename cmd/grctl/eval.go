@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"go.vicoworks.com/guard-rails-engine/config"
-	"go.vicoworks.com/guard-rails-engine/internal/eval"
+	"go.vicoworks.com/guard-rails/config"
+	"go.vicoworks.com/guard-rails/internal/eval"
 )
 
 func runEval(ctx context.Context, args []string) error {

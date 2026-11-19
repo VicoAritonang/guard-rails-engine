@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"go.vicoworks.com/guard-rails-engine/config"
+	"go.vicoworks.com/guard-rails/config"
 )
 
 // Result is what a guard returns. Guards never mutate the transaction

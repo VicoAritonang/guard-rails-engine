@@ -8,7 +8,7 @@ import (
 
 	"golang.org/x/net/html"
 
-	"go.vicoworks.com/guard-rails-engine/internal/core"
+	"go.vicoworks.com/guard-rails/internal/core"
 )
 
 var voidElements = map[string]bool{

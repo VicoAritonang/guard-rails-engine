@@ -7,11 +7,11 @@ import (
 	"strings"
 	"testing"
 
-	"go.vicoworks.com/guard-rails-engine/pkg/guardrails/engine"
-	"go.vicoworks.com/guard-rails-engine/pkg/guardrails/mediaguard"
-	"go.vicoworks.com/guard-rails-engine/pkg/guardrails/ruleguard"
-	"go.vicoworks.com/guard-rails-engine/pkg/guardrails/textguard"
-	"go.vicoworks.com/guard-rails-engine/pkg/guardrails/toolguard"
+	"go.vicoworks.com/guard-rails/pkg/guardrails/engine"
+	"go.vicoworks.com/guard-rails/pkg/guardrails/mediaguard"
+	"go.vicoworks.com/guard-rails/pkg/guardrails/ruleguard"
+	"go.vicoworks.com/guard-rails/pkg/guardrails/textguard"
+	"go.vicoworks.com/guard-rails/pkg/guardrails/toolguard"
 )
 
 func TestNewNeedsAModule(t *testing.T) {

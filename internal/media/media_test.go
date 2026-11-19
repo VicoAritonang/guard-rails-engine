@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"go.vicoworks.com/guard-rails-engine/pkg/guardrails"
+	"go.vicoworks.com/guard-rails/pkg/guardrails"
 )
 
 func scan(t *testing.T, name string, data []byte) (*guardrails.Result, map[string]bool) {

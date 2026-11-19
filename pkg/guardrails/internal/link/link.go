@@ -3,7 +3,7 @@
 // the tool-safety evaluator that signs approvals.
 package link
 
-import "go.vicoworks.com/guard-rails-engine/internal/guards/registry"
+import "go.vicoworks.com/guard-rails/internal/guards/registry"
 
 // Core returns the assembled engine behind an *engine.Engine, or nil for any
 // other value. Package engine sets it at init, which runs before any package

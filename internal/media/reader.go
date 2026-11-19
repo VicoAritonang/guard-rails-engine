@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"go.vicoworks.com/guard-rails-engine/internal/core"
+	"go.vicoworks.com/guard-rails/internal/core"
 )
 
 // reader accumulates the text of one part and its findings.

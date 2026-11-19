@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"go.vicoworks.com/guard-rails-engine/config"
-	"go.vicoworks.com/guard-rails-engine/internal/core"
+	"go.vicoworks.com/guard-rails/config"
+	"go.vicoworks.com/guard-rails/internal/core"
 )
 
 func newGuard(t *testing.T) *Guard {

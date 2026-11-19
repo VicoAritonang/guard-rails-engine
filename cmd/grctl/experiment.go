@@ -8,10 +8,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"go.vicoworks.com/guard-rails-engine/config"
-	"go.vicoworks.com/guard-rails-engine/internal/experiment"
-	"go.vicoworks.com/guard-rails-engine/internal/gateway"
-	"go.vicoworks.com/guard-rails-engine/internal/prices"
+	"go.vicoworks.com/guard-rails/config"
+	"go.vicoworks.com/guard-rails/internal/experiment"
+	"go.vicoworks.com/guard-rails/internal/gateway"
+	"go.vicoworks.com/guard-rails/internal/prices"
 )
 
 func runExperiment(ctx context.Context, args []string) error {

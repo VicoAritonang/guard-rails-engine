@@ -1,12 +1,13 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"time"
 
-	"go.vicoworks.com/guard-rails-engine/internal/core"
-	"go.vicoworks.com/guard-rails-engine/internal/judge"
+	"go.vicoworks.com/guard-rails/internal/core"
+	"go.vicoworks.com/guard-rails/internal/judge"
 )
 
 // guardRequest is the validate-mode payload.
@@ -95,22 +96,47 @@ func (s *Server) handleGuard(w http.ResponseWriter, r *http.Request) {
 // runGuard executes one validate-mode stage and writes the response. Both the
 // JSON route and the multipart upload route end here.
 func (s *Server) runGuard(w http.ResponseWriter, r *http.Request, stage core.Stage, req *guardRequest) {
+	resp, err := s.guard(r.Context(), stage, req)
+	if err != nil {
+		writeError(w, err.status, err.kind, err.msg)
+		return
+	}
+	// Validate mode always returns 200: the caller asked a question and got an
+	// answer. A blocked decision is the answer, not a transport failure, and
+	// returning 4xx here would make ordinary policy enforcement look like a
+	// client bug in every dashboard the caller owns.
+	writeJSON(w, http.StatusOK, resp)
+}
+
+// apiError is a failure to evaluate, as opposed to a decision. Each transport
+// renders it in its own vocabulary: an HTTP status, a gRPC code.
+type apiError struct {
+	status int
+	kind   string
+	msg    string
+}
+
+func invalidRequest(msg string) *apiError {
+	return &apiError{status: http.StatusBadRequest, kind: "invalid_request", msg: msg}
+}
+
+// guard runs one validate-mode stage. It is the single implementation behind
+// POST /v1/guard/{stage}, the media upload route and the gRPC Guard method.
+func (s *Server) guard(ctx context.Context, stage core.Stage, req *guardRequest) (*guardResponse, *apiError) {
 	pipe, err := s.opts.Engine.Pipeline(stage)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_request", err.Error())
-		return
+		return nil, invalidRequest(err.Error())
 	}
 
 	tx := s.transaction(req, stage)
 	if req.VaultToken != "" {
 		if err := tx.Vault.Unseal(req.VaultToken); err != nil {
-			writeError(w, http.StatusBadRequest, "invalid_request", err.Error())
-			return
+			return nil, invalidRequest(err.Error())
 		}
 	}
-	dec, _ := pipe.Execute(r.Context(), tx)
-	semantic := s.validateSemantic(r.Context(), stage, tx, dec)
-	s.opts.Auditor.Record(r.Context(), tx, dec)
+	dec, _ := pipe.Execute(ctx, tx)
+	semantic := s.validateSemantic(ctx, stage, tx, dec)
+	s.opts.Auditor.Record(ctx, tx, dec)
 	s.publishDecision("guard."+string(stage), tx, dec)
 
 	resp := guardResponse{
@@ -132,16 +158,10 @@ func (s *Server) runGuard(w http.ResponseWriter, r *http.Request, stage core.Sta
 	}
 	token, err := tx.Vault.Seal()
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "internal_error", "could not seal the vault")
-		return
+		return nil, &apiError{status: http.StatusInternalServerError, kind: "internal_error", msg: "could not seal the vault"}
 	}
 	resp.VaultToken = token
-
-	// Validate mode always returns 200: the caller asked a question and got an
-	// answer. A blocked decision is the answer, not a transport failure, and
-	// returning 4xx here would make ordinary policy enforcement look like a
-	// client bug in every dashboard the caller owns.
-	writeJSON(w, http.StatusOK, resp)
+	return &resp, nil
 }
 
 func (s *Server) transaction(req *guardRequest, stage core.Stage) *core.Transaction {

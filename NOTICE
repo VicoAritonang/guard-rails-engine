@@ -1,0 +1,8 @@
+Guardrails Engine
+Copyright 2026 Vico Winner Sebastian Aritonang
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+Benchmark datasets used by the experiments are fetched from their original
+sources at run time and are not redistributed with this product; each keeps
+its own licence, recorded in experiments/benchmarks/manifest.json.

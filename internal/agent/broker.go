@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"time"
 
-	"go.vicoworks.com/guard-rails-engine/internal/core"
+	"go.vicoworks.com/guard-rails/internal/core"
 )
 
 // Executor performs a tool call, or describes what it would do.

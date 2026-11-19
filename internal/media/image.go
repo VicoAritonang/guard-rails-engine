@@ -14,7 +14,7 @@ import (
 	"strings"
 	"sync"
 
-	"go.vicoworks.com/guard-rails-engine/internal/core"
+	"go.vicoworks.com/guard-rails/internal/core"
 )
 
 // image handles a picture in four passes, cheapest first: dimensions (a

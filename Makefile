@@ -4,7 +4,7 @@
 # locally it passes in CI, and that property is worth more than any individual
 # target here.
 
-MODULE  := go.vicoworks.com/guard-rails-engine
+MODULE  := go.vicoworks.com/guard-rails
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -s -w -X main.version=$(VERSION)
 BUILD   := build
@@ -18,7 +18,7 @@ MAX_P99         ?= 50ms
 MIN_CATCH_RATE  ?= 0.90
 
 .DEFAULT_GOAL := check
-.PHONY: vuln check build test race lint vet fmt eval redteam sweep bench cover run scan clean docker docker-run tidy ci tools agent matrix up down loadgen experiments experiment-offline dashboard bench-fetch benchmarks mcp-demo
+.PHONY: api api-tools vuln check build test race lint vet fmt eval redteam sweep bench cover run scan clean docker docker-run tidy ci tools agent matrix up down loadgen experiments experiment-offline dashboard bench-fetch benchmarks mcp-demo
 
 ## check: everything CI runs
 check: fmt vet test eval redteam agent
@@ -46,6 +46,26 @@ cover:
 	go tool cover -func=$(BUILD)/coverage.out | tail -1
 	go tool cover -html=$(BUILD)/coverage.out -o $(BUILD)/coverage.html
 	@echo "report at $(BUILD)/coverage.html"
+
+## api: lint the protobuf contract, check it against main, regenerate the Go stubs
+#
+# The breaking-change check compares with main, so a renamed or renumbered
+# field fails here before it can strand a client generated from the last
+# release. `make api-tools` installs the pinned generators.
+BUF_VERSION         := v1.75.0
+PROTOC_GEN_GO       := v1.36.12
+PROTOC_GEN_GO_GRPC  := v1.6.2
+api:
+	cd api/proto && buf lint && buf format -d --exit-code
+	@if git cat-file -e main:api/proto/buf.yaml 2>/dev/null; then 		cd api/proto && buf breaking --against '../../.git#branch=main,subdir=api/proto'; 	else echo "main has no api/proto yet; skipping the breaking-change check"; fi
+	cd api/proto && buf generate
+	go test -count=1 -run 'OpenAPI|Proto|Enums|Wire|GRPC' ./internal/server/
+
+## api-tools: install buf and the protoc plugins at the pinned versions
+api-tools:
+	go install github.com/bufbuild/buf/cmd/buf@$(BUF_VERSION)
+	go install google.golang.org/protobuf/cmd/protoc-gen-go@$(PROTOC_GEN_GO)
+	go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@$(PROTOC_GEN_GO_GRPC)
 
 ## vuln: check dependencies and the toolchain for known vulnerabilities
 vuln:

@@ -6,7 +6,7 @@ import (
 	"encoding/binary"
 	"strings"
 
-	"go.vicoworks.com/guard-rails-engine/internal/core"
+	"go.vicoworks.com/guard-rails/internal/core"
 )
 
 // audio transcribes speech so the text guards can read it. A spoken

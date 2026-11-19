@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	"go.vicoworks.com/guard-rails-engine/internal/core"
+	"go.vicoworks.com/guard-rails/internal/core"
 )
 
 // Guard reports the ingest step's findings through the pipeline, so a macro

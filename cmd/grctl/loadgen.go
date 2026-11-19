@@ -14,7 +14,7 @@ import (
 	"sync"
 	"time"
 
-	"go.vicoworks.com/guard-rails-engine/internal/experiment"
+	"go.vicoworks.com/guard-rails/internal/experiment"
 )
 
 // runLoadgen drives realistic mixed traffic through a running gateway so the

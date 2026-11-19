@@ -157,7 +157,7 @@ cannot serve, such as agents with tools.
 |---|---|---|
 | Python | `pip install guard-rails-engine` | [sdks/python](../sdks/python/README.md) |
 | JavaScript, TypeScript | `npm install guard-rails-engine` | [sdks/js](../sdks/js/README.md) |
-| Go | `go get go.vicoworks.com/guard-rails-engine/pkg/sdk` | [pkg/sdk](../pkg/sdk/client.go) |
+| Go | `go get go.vicoworks.com/guard-rails/pkg/sdk` | [pkg/sdk](../pkg/sdk/client.go) |
 | Anything else | HTTP | Below |
 
 ```bash
@@ -178,7 +178,7 @@ For an agent loop, call `/v1/guard/runtime` with the proposed tool calls and
 `pkg/guardrails` runs the engine inside your process, with no network hop.
 
 ```bash
-go get go.vicoworks.com/guard-rails-engine/pkg/guardrails
+go get go.vicoworks.com/guard-rails/pkg/guardrails
 ```
 
 ```go
@@ -218,7 +218,7 @@ Pass `Options.Policy` to change the policy: `config.StrictPolicy()`, or
 | A single host | [`deploy/compose/docker-compose.yml`](../deploy/compose/docker-compose.yml) |
 | Kubernetes | [`deploy/kubernetes/guardrails.yaml`](../deploy/kubernetes/guardrails.yaml) |
 | Local development with dashboards | The root [`docker-compose.yml`](../docker-compose.yml) |
-| No Docker | Binaries on the [releases page](https://github.com/VicoAritonang/guard-rails-engine/releases), or `go install go.vicoworks.com/guard-rails-engine/cmd/server@latest` |
+| No Docker | Binaries on the [releases page](https://github.com/VicoAritonang/guard-rails-engine/releases), or `go install go.vicoworks.com/guard-rails/cmd/server@latest` |
 
 Metrics, traces and logs are standard: Prometheus at `/metrics`, OTLP/HTTP with
 `GUARDRAILS_OTLP_ENDPOINT`, and JSON on stdout. See [observability](observability.md).

@@ -3,8 +3,8 @@
 // needs as modules, and links nothing else.
 //
 //	import (
-//		"go.vicoworks.com/guard-rails-engine/pkg/guardrails/engine"
-//		"go.vicoworks.com/guard-rails-engine/pkg/guardrails/textguard"
+//		"go.vicoworks.com/guard-rails/pkg/guardrails/engine"
+//		"go.vicoworks.com/guard-rails/pkg/guardrails/textguard"
 //	)
 //
 //	g, err := engine.New(engine.Options{}, textguard.Module())
@@ -37,10 +37,10 @@ import (
 	"fmt"
 	"time"
 
-	"go.vicoworks.com/guard-rails-engine/config"
-	"go.vicoworks.com/guard-rails-engine/internal/core"
-	"go.vicoworks.com/guard-rails-engine/internal/guards/registry"
-	"go.vicoworks.com/guard-rails-engine/pkg/guardrails/internal/link"
+	"go.vicoworks.com/guard-rails/config"
+	"go.vicoworks.com/guard-rails/internal/core"
+	"go.vicoworks.com/guard-rails/internal/guards/registry"
+	"go.vicoworks.com/guard-rails/pkg/guardrails/internal/link"
 )
 
 // The payload types are the engine's own, so a value moves between this package

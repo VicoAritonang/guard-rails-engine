@@ -10,10 +10,10 @@ import (
 	"sync"
 	"time"
 
-	"go.vicoworks.com/guard-rails-engine/internal/core"
-	"go.vicoworks.com/guard-rails-engine/internal/eval"
-	"go.vicoworks.com/guard-rails-engine/internal/judge"
-	"go.vicoworks.com/guard-rails-engine/internal/providers"
+	"go.vicoworks.com/guard-rails/internal/core"
+	"go.vicoworks.com/guard-rails/internal/eval"
+	"go.vicoworks.com/guard-rails/internal/judge"
+	"go.vicoworks.com/guard-rails/internal/providers"
 )
 
 // DetectionCase is one labelled text.

@@ -1,0 +1,387 @@
+// The gRPC contract of the Guardrails Engine, version 1.
+//
+// It is the same contract as the REST API (api/openapi.yaml), carried over a
+// second transport: every message here mirrors a JSON object there, and every
+// field name here is the JSON field name there. A client can therefore move
+// between the two without relearning a single field, and the gateway runs one
+// code path behind both. internal/server/contract_test.go fails the build if
+// the two ever drift apart.
+//
+// Compatibility rules for v1 (see docs/api.md):
+//   - fields and enum values are only ever added, never renamed, renumbered or
+//     removed; a retired field is marked deprecated and its number reserved;
+//   - a client must treat an enum value it does not know as UNSPECIFIED and
+//     carry on, because new values (a new stage, a new modality) are additive;
+//   - anything that cannot follow these rules goes to guardrails.v2.
+syntax = "proto3";
+
+package guardrails.v1;
+
+import "google/protobuf/struct.proto";
+
+option csharp_namespace = "GuardRails.V1";
+option go_package = "go.vicoworks.com/guard-rails/pkg/api/guardrailsv1;guardrailsv1";
+option java_multiple_files = true;
+option java_outer_classname = "GuardrailsProto";
+option java_package = "com.vicoworks.guardrails.v1";
+option php_namespace = "GuardRails\\V1";
+
+// GuardService is validate mode: the caller keeps its own model integration
+// and asks the engine for a decision at each interception point.
+//
+// Authentication uses the same keys as REST, sent as gRPC metadata:
+// "authorization: Bearer <key>" or "x-api-key: <key>". A request may carry
+// "x-request-id"; the server echoes the effective ID in the response header
+// of the same name.
+service GuardService {
+  // Guard runs one stage of the pipeline and returns the decision together
+  // with the payload as the engine left it (masked, truncated, restored).
+  //
+  // A blocked decision is a successful call: the answer is "blocked", not a
+  // transport failure. Errors are reserved for requests the engine could not
+  // evaluate (INVALID_ARGUMENT, UNAUTHENTICATED, RESOURCE_EXHAUSTED, INTERNAL).
+  rpc Guard(GuardRequest) returns (GuardResponse);
+
+  // ListGuards reports every guard the active policy knows, with its stage
+  // and effective settings.
+  rpc ListGuards(ListGuardsRequest) returns (ListGuardsResponse);
+}
+
+// Stage is an interception point in the request lifecycle.
+enum Stage {
+  STAGE_UNSPECIFIED = 0;
+  // Before the prompt reaches the model provider.
+  STAGE_INBOUND = 1;
+  // On a tool call the model proposed, before it executes.
+  STAGE_RUNTIME = 2;
+  // On what a tool returned, before it is fed back to the model.
+  STAGE_TOOL_RESULT = 3;
+  // On the model completion, before it reaches the caller.
+  STAGE_OUTBOUND = 4;
+}
+
+// Action is the enforcement outcome, ordered from weakest to strongest.
+enum Action {
+  ACTION_UNSPECIFIED = 0;
+  ACTION_ALLOW = 1;
+  // Observe only: recorded, traffic unchanged.
+  ACTION_FLAG = 2;
+  // The payload was rewritten in place and the request continues.
+  ACTION_REDACT = 3;
+  // The caller must stop.
+  ACTION_BLOCK = 4;
+}
+
+// Severity grades a finding independently of the action taken on it.
+enum Severity {
+  SEVERITY_UNSPECIFIED = 0;
+  SEVERITY_INFO = 1;
+  SEVERITY_LOW = 2;
+  SEVERITY_MEDIUM = 3;
+  SEVERITY_HIGH = 4;
+  SEVERITY_CRITICAL = 5;
+}
+
+// Role is the author of a chat turn.
+enum Role {
+  ROLE_UNSPECIFIED = 0;
+  ROLE_SYSTEM = 1;
+  ROLE_USER = 2;
+  ROLE_ASSISTANT = 3;
+  ROLE_TOOL = 4;
+}
+
+// Origin records who could have written a tool result.
+enum Origin {
+  // Treated as ORIGIN_TOOL.
+  ORIGIN_UNSPECIFIED = 0;
+  ORIGIN_OPERATOR = 1;
+  ORIGIN_USER = 2;
+  ORIGIN_TOOL = 3;
+  // Fetched from the public internet: the stricter prior applies.
+  ORIGIN_WEB = 4;
+}
+
+// Modality is the kind of content a Part carries.
+enum Modality {
+  MODALITY_UNSPECIFIED = 0;
+  MODALITY_TEXT = 1;
+  MODALITY_IMAGE = 2;
+  MODALITY_AUDIO = 3;
+  MODALITY_VIDEO = 4;
+  MODALITY_DOCUMENT = 5;
+}
+
+// Coverage says how much of a part the guards actually saw.
+enum Coverage {
+  COVERAGE_UNSPECIFIED = 0;
+  COVERAGE_FULL = 1;
+  COVERAGE_PARTIAL = 2;
+  COVERAGE_NONE = 3;
+}
+
+// GuardRequest is the REST body of POST /v1/guard/{stage}, plus the stage.
+// Which fields a stage reads: inbound reads system and messages; runtime reads
+// tool_calls, history and session; tool_result reads tool_results and
+// session; outbound reads completion, context and vault_token.
+message GuardRequest {
+  // Required.
+  Stage stage = 1;
+  string tenant = 2;
+  string model = 3;
+  string system = 4;
+  repeated Message messages = 5;
+  string completion = 6;
+  // Retrieved documents the completion should be grounded in.
+  repeated string context = 7;
+  repeated ToolCall tool_calls = 8;
+  // Earlier calls in this agent trace.
+  repeated ToolCall history = 9;
+  int64 step = 10;
+  Usage usage = 11;
+  double cost_usd = 12;
+  google.protobuf.Struct meta = 13;
+  repeated ToolResult tool_results = 14;
+  // The agent state a previous response returned. The engine keeps none of
+  // its own, so the caller passes it back on every step.
+  SessionState session = 15;
+  // The token an earlier stage returned. Passing it to the outbound stage
+  // restores the values inbound masked.
+  string vault_token = 16;
+}
+
+// GuardResponse is the decision and the payload as the engine left it.
+message GuardResponse {
+  Decision decision = 1;
+  string system = 2;
+  repeated Message messages = 3;
+  string completion = 4;
+  // True when decision.action is ACTION_BLOCK.
+  bool blocked = 5;
+  // A short, user-safe explanation, set when blocked.
+  string reason = 6;
+  repeated ToolResult tool_results = 7;
+  SessionState session = 8;
+  // Opaque and encrypted. Hold it until the outbound call; the gateway keeps
+  // no copy.
+  string vault_token = 9;
+  // The model-classifier outcome, when the semantic tier covers this stage.
+  SemanticOutcome semantic = 10;
+}
+
+// Message is one chat turn.
+message Message {
+  Role role = 1;
+  string content = 2;
+  string name = 3;
+  repeated ToolCall tool_calls = 4;
+  string tool_call_id = 5;
+  repeated Part parts = 6;
+}
+
+// ToolCall is a tool invocation the model proposed.
+message ToolCall {
+  string id = 1;
+  string name = 2;
+  google.protobuf.Struct arguments = 3;
+  // Verbatim JSON arguments, scanned as text.
+  string raw = 4;
+}
+
+// ToolResult is what a tool returned.
+message ToolResult {
+  string call_id = 1;
+  string name = 2;
+  string content = 3;
+  string error = 4;
+  Origin origin = 5;
+  // The result carried private data out of a system of record.
+  bool sensitive = 6;
+  repeated Part parts = 7;
+}
+
+// Part is an attachment: an image, a document, a recording.
+message Part {
+  Modality type = 1;
+  string mime = 2;
+  string name = 3;
+  bytes data = 4;
+  // Fetched only when the policy allows remote media (media.fetch_remote).
+  string url = 5;
+  string format = 6;
+  string detail = 7;
+  // The text the guards scan: extracted, OCR'd or transcribed. Redaction
+  // rewrites this field, never data.
+  string text = 8;
+  Extraction extraction = 9;
+}
+
+// Extraction is the ingest step's report on one part.
+message Extraction {
+  repeated string methods = 1;
+  Coverage coverage = 2;
+  int64 bytes = 3;
+  int64 chars = 4;
+  int64 pages = 5;
+  int64 width = 6;
+  int64 height = 7;
+  double seconds = 8;
+  bool truncated = 9;
+  int64 duration_ms = 10;
+  repeated Finding findings = 11;
+  repeated string warnings = 12;
+  string text_sha256 = 13;
+  // native | text | dropped
+  string forwarded = 14;
+}
+
+// Usage carries token accounting for cost attribution.
+message Usage {
+  int64 input_tokens = 1;
+  int64 output_tokens = 2;
+  int64 cache_read_input_tokens = 3;
+  int64 cache_creation_input_tokens = 4;
+}
+
+// SessionState is the agent's accumulated state across a trace. Treat it as
+// opaque: pass back exactly what the previous response returned.
+message SessionState {
+  string trace_id = 1;
+  int64 step = 2;
+  repeated string granted = 3;
+  EffectLedger effects = 4;
+  TaintLedger taint = 5;
+  map<string, int64> tool_calls = 6;
+  map<string, string> executed = 7;
+  repeated string approvals_used = 8;
+  string audit_chain = 9;
+  repeated string simulated = 10;
+}
+
+// EffectLedger records which legs of the exfiltration trifecta a trace has
+// touched.
+message EffectLedger {
+  bool read_private = 1;
+  bool ingested_untrusted = 2;
+  bool can_exfiltrate = 3;
+  map<string, string> witness = 4;
+}
+
+// TaintLedger fingerprints untrusted content the agent has ingested.
+message TaintLedger {
+  repeated uint64 shingles = 1;
+  repeated uint64 tokens = 2;
+  repeated string sources = 3;
+}
+
+// Decision is the pipeline's verdict for one stage.
+message Decision {
+  string transaction_id = 1;
+  Stage stage = 2;
+  Action action = 3;
+  repeated Finding findings = 4;
+  repeated Mutation mutations = 5;
+  repeated GuardRun guard_runs = 6;
+  int64 duration_ns = 7;
+  string policy_version = 8;
+  // A guard failed and was failed open.
+  bool degraded = 9;
+  map<string, double> metrics = 10;
+}
+
+// Finding is a single detection.
+message Finding {
+  string guard = 1;
+  string rule = 2;
+  // Dotted taxonomy, for example "pii.credit_card".
+  string category = 3;
+  Severity severity = 4;
+  // Calibrated confidence in [0, 1].
+  double score = 5;
+  string message = 6;
+  repeated Span spans = 7;
+  map<string, string> meta = 8;
+}
+
+// Span locates a detection by byte offsets into the original text of a field.
+message Span {
+  // For example "messages[0].content".
+  string field = 1;
+  int64 start = 2;
+  int64 end = 3;
+  // A redacted preview, safe to log.
+  string excerpt = 4;
+}
+
+// Mutation is one edit the pipeline applied.
+message Mutation {
+  string guard = 1;
+  string field = 2;
+  int64 start = 3;
+  int64 end = 4;
+  string replacement = 5;
+  string reason = 6;
+}
+
+// GuardRun records what happened to one guard, including failures the
+// pipeline absorbed.
+message GuardRun {
+  string guard = 1;
+  int64 duration_ns = 2;
+  int64 findings = 3;
+  Action action = 4;
+  bool skipped = 5;
+  bool timed_out = 6;
+  string error = 7;
+  string fail_mode = 8;
+}
+
+// SemanticOutcome is what the model-based classifier tier concluded.
+message SemanticOutcome {
+  bool ran = 1;
+  string reason = 2;
+  bool unsafe = 3;
+  bool enforced = 4;
+  repeated Verdict verdicts = 5;
+  int64 duration_ns = 6;
+  double cost_usd = 7;
+  bool degraded = 8;
+  double heuristic_score = 9;
+  // judge_only | heuristic_only
+  string disagreement = 10;
+}
+
+// Verdict is one classifier's answer.
+message Verdict {
+  string classifier = 1;
+  string model = 2;
+  bool unsafe = 3;
+  // P(unsafe), in [0, 1].
+  double score = 4;
+  string category = 5;
+  string rationale = 6;
+  int64 latency_ns = 7;
+  double cost_usd = 8;
+  int64 calls = 9;
+  string error = 10;
+}
+
+message ListGuardsRequest {}
+
+message ListGuardsResponse {
+  string policy = 1;
+  string version = 2;
+  repeated GuardInfo guards = 3;
+}
+
+// GuardInfo is one guard and its effective settings.
+message GuardInfo {
+  string name = 1;
+  Stage stage = 2;
+  bool enabled = 3;
+  // open | closed
+  string fail_mode = 4;
+  // A Go duration string, for example "50ms".
+  string timeout = 5;
+  double threshold = 6;
+}

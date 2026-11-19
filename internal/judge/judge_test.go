@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"go.vicoworks.com/guard-rails-engine/internal/core"
+	"go.vicoworks.com/guard-rails/internal/core"
 )
 
 func TestParseJudgeJSONTolerance(t *testing.T) {

@@ -18,8 +18,8 @@ package mediaguard
 import (
 	"context"
 
-	"go.vicoworks.com/guard-rails-engine/internal/media"
-	"go.vicoworks.com/guard-rails-engine/pkg/guardrails/engine"
+	"go.vicoworks.com/guard-rails/internal/media"
+	"go.vicoworks.com/guard-rails/pkg/guardrails/engine"
 )
 
 type (

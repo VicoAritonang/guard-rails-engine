@@ -4,7 +4,7 @@ import (
 	"math"
 	"testing"
 
-	"go.vicoworks.com/guard-rails-engine/internal/core"
+	"go.vicoworks.com/guard-rails/internal/core"
 )
 
 func approx(t *testing.T, got, want float64, label string) {

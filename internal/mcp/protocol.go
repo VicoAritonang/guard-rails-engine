@@ -29,7 +29,7 @@ import (
 	"encoding/json"
 	"path"
 
-	"go.vicoworks.com/guard-rails-engine/internal/core"
+	"go.vicoworks.com/guard-rails/internal/core"
 )
 
 // ProtocolVersion is the MCP revision this gateway speaks.

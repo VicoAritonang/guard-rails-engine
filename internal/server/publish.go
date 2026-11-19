@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"strings"
 
-	"go.vicoworks.com/guard-rails-engine/internal/core"
-	"go.vicoworks.com/guard-rails-engine/internal/judge"
+	"go.vicoworks.com/guard-rails/internal/core"
+	"go.vicoworks.com/guard-rails/internal/judge"
 )
 
 // decisionView is the console's projection of a stage decision: enough to

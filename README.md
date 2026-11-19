@@ -1,8 +1,8 @@
 # Guardrails Engine
 
 [![ci](https://github.com/VicoAritonang/guard-rails-engine/actions/workflows/ci.yml/badge.svg)](https://github.com/VicoAritonang/guard-rails-engine/actions/workflows/ci.yml)
-[![Go Reference](https://pkg.go.dev/badge/go.vicoworks.com/guard-rails-engine.svg)](https://pkg.go.dev/go.vicoworks.com/guard-rails-engine)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Go Reference](https://pkg.go.dev/badge/go.vicoworks.com/guard-rails.svg)](https://pkg.go.dev/go.vicoworks.com/guard-rails)
+[![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 
 A production-shaped AI guardrails and evaluation engine in Go. It sits between an
 application and an LLM provider, enforces policy at four interception points, and
@@ -68,7 +68,8 @@ client = OpenAI(base_url="http://localhost:8080/v1", api_key="your-gateway-key")
 
 **Keep your provider code** and check what goes in and comes out, from
 [Python](sdks/python/README.md), [JavaScript or TypeScript](sdks/js/README.md),
-[Go](pkg/sdk/client.go) or plain HTTP:
+[Go](pkg/sdk/client.go), plain HTTP, or gRPC. Clients for any other language
+can be generated from the [OpenAPI and protobuf contract](docs/api.md):
 
 ```python
 from guard_rails_engine import Client   # pip install guard-rails-engine
@@ -80,11 +81,11 @@ print(gr.outbound(completion=answer, vault_token=inbound.vault_token).completion
 ```
 
 **Embed it in a Go program**, with no gateway to run
-(`go get go.vicoworks.com/guard-rails-engine@latest`; guide:
+(`go get go.vicoworks.com/guard-rails@latest`; guide:
 [docs/go-library.md](docs/go-library.md)):
 
 ```go
-import "go.vicoworks.com/guard-rails-engine/pkg/guardrails"
+import "go.vicoworks.com/guard-rails/pkg/guardrails"
 
 g, _ := guardrails.New(guardrails.Options{})
 in, err := g.Inbound(ctx, guardrails.Request{Messages: messages})
@@ -851,6 +852,13 @@ be answerable:
 | `GET` | `/healthz` · `/readyz` | Liveness / readiness (unauthenticated) |
 | `GET` | `/` · `/console` | Live showcase · operator console (`GUARDRAILS_DASHBOARD`) |
 
+The full contract is [`api/openapi.yaml`](api/openapi.yaml) (OpenAPI 3.1), and the
+same validate-mode API is served over gRPC (`guardrails.v1.GuardService`,
+[`api/proto`](api/proto/guardrails/v1/guardrails.proto)) when
+`GUARDRAILS_GRPC_ADDR` is set. Both carry the same field names, are checked
+against each other in CI, and follow the compatibility rules in
+[docs/api.md](docs/api.md), which also covers generating clients in any language.
+
 A validate-mode block returns **200**: the caller asked a question and got an
 answer. Proxy-mode blocks return **422**, not 400: the request was well-formed
 and understood, and was refused on policy grounds. A refused
@@ -873,6 +881,7 @@ security engineer can change a rule without learning the deployment.
 |---|---|---|
 | `GUARDRAILS_SECRET` | *(generated)* | **Must be identical across replicas**: it keys the vault and signs approvals |
 | `GUARDRAILS_ADDR` | `127.0.0.1:8080` | The Docker image sets `:8080` |
+| `GUARDRAILS_GRPC_ADDR` | *(off)* | Also serve the gRPC API there, e.g. `:9090`; see [docs/api.md](docs/api.md) |
 | `GUARDRAILS_PROVIDER` | `mock` | `openai` · `anthropic` · `groq` · `mock` · `replay` |
 | `OPENAI_API_KEY` | *(none)* | Read from `.env` or the environment |
 | `OPENAI_BASE_URL` | OpenAI | Point at any OpenAI-compatible endpoint |
@@ -1024,6 +1033,8 @@ internal/providers openai · anthropic · groq · local (vLLM/Ollama) · mock ·
 pkg/guardrails    public Go library: the engine, in process, every module loaded
       ├ engine    the core alone; textguard/ ruleguard/ toolguard/ mediaguard/ are its modules
 pkg/sdk           Go client for sidecar mode
+pkg/api           generated gRPC stubs (guardrails.v1)
+api/              the API contract: openapi.yaml and proto/
 sdks/             Python and JavaScript clients
 deploy/           compose (+ local guard models), Helm, Kubernetes, Grafana, Prometheus
 testdata/eval     labelled corpus
@@ -1058,5 +1069,5 @@ Generated reference: [tool risk matrix](docs/tool-matrix.md) ·
 
 ## License
 
-[MIT](LICENSE). Contributions are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md),
+[Apache License 2.0](LICENSE), copyright 2026 Vico Winner Sebastian Aritonang (see [NOTICE](NOTICE)). Contributions are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md),
 and [SECURITY.md](SECURITY.md) to report a vulnerability.

@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"go.vicoworks.com/guard-rails-engine/internal/agent"
-	"go.vicoworks.com/guard-rails-engine/internal/core"
+	"go.vicoworks.com/guard-rails/internal/agent"
+	"go.vicoworks.com/guard-rails/internal/core"
 )
 
 func writeJSONOut(w io.Writer, v any) error {

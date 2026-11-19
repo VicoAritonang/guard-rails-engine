@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"go.vicoworks.com/guard-rails-engine/internal/core"
+	"go.vicoworks.com/guard-rails/internal/core"
 )
 
 // The proxy speaks the OpenAI chat completions dialect, because that is the one

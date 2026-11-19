@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "Python client for Guardrails Engine: check prompts, tool calls and model output against a guardrails gateway."
 readme = "README.md"
 requires-python = ">=3.9"
-license = "MIT"
+license = "Apache-2.0"
 authors = [{ name = "Vico Aritonang" }]
 keywords = ["llm", "guardrails", "prompt-injection", "pii", "ai-safety", "mcp"]
 classifiers = [

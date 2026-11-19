@@ -10,8 +10,8 @@ import (
 	"sort"
 	"strings"
 
-	"go.vicoworks.com/guard-rails-engine/config"
-	"go.vicoworks.com/guard-rails-engine/internal/core"
+	"go.vicoworks.com/guard-rails/config"
+	"go.vicoworks.com/guard-rails/internal/core"
 )
 
 // Schema enforces that a completion is the JSON document the caller asked for.

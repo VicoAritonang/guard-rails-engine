@@ -10,7 +10,10 @@ First public distribution.
 
 ### Breaking
 
-- The Go module path is now `go.vicoworks.com/guard-rails-engine`, a vanity import
+- Licensed under the Apache License 2.0 (was MIT). Copyright 2026 Vico Winner
+  Sebastian Aritonang; see `LICENSE` and `NOTICE`.
+
+- The Go module path is now `go.vicoworks.com/guard-rails`, a vanity import
   path served by a Cloudflare Worker (`deploy/cloudflare/go-vanity`) that points the
   Go toolchain at the GitHub repository. Imports of `github.com/VicoAritonang/...`
   must be rewritten; the source, issues, CI and images stay on GitHub.
@@ -29,6 +32,16 @@ First public distribution.
   inline file parts are scanned and accepted.
 
 ### Added
+
+- A stable, versioned API contract: `api/openapi.yaml` (OpenAPI 3.1, every
+  operation marked `stable`, `beta` or `experimental`) and
+  `api/proto/guardrails/v1/guardrails.proto`. The compatibility rules are in
+  `docs/api.md`; CI lints the proto, rejects breaking changes against `main`,
+  and fails when the Go types, the OpenAPI schemas and the proto disagree.
+- gRPC API (`guardrails.v1.GuardService`: `Guard`, `ListGuards`) with the
+  standard health service and reflection, enabled by `GUARDRAILS_GRPC_ADDR`.
+  It shares the HTTP keys, rate limits, timeouts and the same guard code path.
+  Go stubs are importable from `go.vicoworks.com/guard-rails/pkg/api/guardrailsv1`.
 
 - Multimodal ingest (`internal/media`): PDF, DOCX/XLSX/PPTX, ODF, HTML, SVG, RTF,
   ZIP listings, image metadata, OCR (vision route or HTTP sidecar), speech-to-text

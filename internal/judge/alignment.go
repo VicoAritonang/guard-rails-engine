@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"go.vicoworks.com/guard-rails-engine/internal/core"
+	"go.vicoworks.com/guard-rails/internal/core"
 )
 
 // ImageClassifier is a classifier that can also judge an image directly.

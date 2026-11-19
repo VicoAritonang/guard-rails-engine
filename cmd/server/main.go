@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -15,17 +16,18 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"google.golang.org/grpc"
 
-	"go.vicoworks.com/guard-rails-engine/config"
-	"go.vicoworks.com/guard-rails-engine/internal/core"
-	"go.vicoworks.com/guard-rails-engine/internal/experiment"
-	"go.vicoworks.com/guard-rails-engine/internal/gateway"
-	"go.vicoworks.com/guard-rails-engine/internal/guards"
-	"go.vicoworks.com/guard-rails-engine/internal/guards/runtime"
-	"go.vicoworks.com/guard-rails-engine/internal/mcp"
-	"go.vicoworks.com/guard-rails-engine/internal/prices"
-	"go.vicoworks.com/guard-rails-engine/internal/server"
-	"go.vicoworks.com/guard-rails-engine/internal/telemetry"
+	"go.vicoworks.com/guard-rails/config"
+	"go.vicoworks.com/guard-rails/internal/core"
+	"go.vicoworks.com/guard-rails/internal/experiment"
+	"go.vicoworks.com/guard-rails/internal/gateway"
+	"go.vicoworks.com/guard-rails/internal/guards"
+	"go.vicoworks.com/guard-rails/internal/guards/runtime"
+	"go.vicoworks.com/guard-rails/internal/mcp"
+	"go.vicoworks.com/guard-rails/internal/prices"
+	"go.vicoworks.com/guard-rails/internal/server"
+	"go.vicoworks.com/guard-rails/internal/telemetry"
 )
 
 var version = "dev" // set via -ldflags at build time
@@ -270,6 +272,23 @@ func run() error {
 		}
 	}()
 
+	// The gRPC API is opt-in: it serves the same guardrails.v1 contract as
+	// /v1/guard/*, for callers that would rather have generated stubs.
+	var grpcSrv *grpc.Server
+	if cfg.GRPCAddr != "" {
+		lis, err := net.Listen("tcp", cfg.GRPCAddr)
+		if err != nil {
+			return fmt.Errorf("grpc listen: %w", err)
+		}
+		grpcSrv = srv.GRPC()
+		go func() {
+			logger.Info("grpc listening", "addr", cfg.GRPCAddr)
+			if err := grpcSrv.Serve(lis); err != nil && !errors.Is(err, grpc.ErrServerStopped) {
+				errCh <- fmt.Errorf("grpc: %w", err)
+			}
+		}()
+	}
+
 	select {
 	case err := <-errCh:
 		return err
@@ -285,6 +304,15 @@ func run() error {
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), cfg.ShutdownTimeout)
 	defer cancel()
+	if grpcSrv != nil {
+		go func() {
+			// GracefulStop waits for every in-flight call; past the deadline,
+			// Stop cuts them, as http.Server.Shutdown's context does.
+			<-shutdownCtx.Done()
+			grpcSrv.Stop()
+		}()
+		grpcSrv.GracefulStop()
+	}
 	if err := httpSrv.Shutdown(shutdownCtx); err != nil {
 		return fmt.Errorf("shutdown: %w", err)
 	}

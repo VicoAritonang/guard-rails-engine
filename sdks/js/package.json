@@ -11,13 +11,13 @@
       "default": "./index.js"
     }
   },
-  "files": ["index.js", "index.d.ts", "README.md"],
+  "files": ["index.js", "index.d.ts", "README.md", "LICENSE", "NOTICE"],
   "engines": {
     "node": ">=18"
   },
   "keywords": ["llm", "guardrails", "prompt-injection", "pii", "ai-safety", "mcp"],
   "author": "Vico Aritonang",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/VicoAritonang/guard-rails-engine.git",

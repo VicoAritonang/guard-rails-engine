@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"go.vicoworks.com/guard-rails-engine/internal/core"
-	"go.vicoworks.com/guard-rails-engine/internal/judge"
+	"go.vicoworks.com/guard-rails/internal/core"
+	"go.vicoworks.com/guard-rails/internal/judge"
 )
 
 // handleMediaInfo reports what the ingest step can read in this deployment:

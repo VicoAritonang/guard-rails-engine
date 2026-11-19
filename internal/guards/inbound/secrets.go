@@ -6,10 +6,10 @@ import (
 	"regexp"
 	"strings"
 
-	"go.vicoworks.com/guard-rails-engine/config"
-	"go.vicoworks.com/guard-rails-engine/internal/core"
-	"go.vicoworks.com/guard-rails-engine/internal/core/normalize"
-	"go.vicoworks.com/guard-rails-engine/internal/guards/detect"
+	"go.vicoworks.com/guard-rails/config"
+	"go.vicoworks.com/guard-rails/internal/core"
+	"go.vicoworks.com/guard-rails/internal/core/normalize"
+	"go.vicoworks.com/guard-rails/internal/guards/detect"
 )
 
 // secretRule detects a credential.

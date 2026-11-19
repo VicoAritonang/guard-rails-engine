@@ -1,6 +1,6 @@
 // Package guardrails embeds the engine in a Go program, with no gateway to run.
 //
-//	go get go.vicoworks.com/guard-rails-engine@latest
+//	go get go.vicoworks.com/guard-rails@latest
 //
 // Use it when the application owns its model calls and wants the checks in
 // process: there is no network hop, and nothing to deploy. To check calls from
@@ -43,11 +43,11 @@ package guardrails
 import (
 	"context"
 
-	"go.vicoworks.com/guard-rails-engine/pkg/guardrails/engine"
-	"go.vicoworks.com/guard-rails-engine/pkg/guardrails/mediaguard"
-	"go.vicoworks.com/guard-rails-engine/pkg/guardrails/ruleguard"
-	"go.vicoworks.com/guard-rails-engine/pkg/guardrails/textguard"
-	"go.vicoworks.com/guard-rails-engine/pkg/guardrails/toolguard"
+	"go.vicoworks.com/guard-rails/pkg/guardrails/engine"
+	"go.vicoworks.com/guard-rails/pkg/guardrails/mediaguard"
+	"go.vicoworks.com/guard-rails/pkg/guardrails/ruleguard"
+	"go.vicoworks.com/guard-rails/pkg/guardrails/textguard"
+	"go.vicoworks.com/guard-rails/pkg/guardrails/toolguard"
 )
 
 // The types are package engine's, and its modules', so a value moves between

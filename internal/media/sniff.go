@@ -6,7 +6,7 @@ import (
 	"path"
 	"strings"
 
-	"go.vicoworks.com/guard-rails-engine/internal/core"
+	"go.vicoworks.com/guard-rails/internal/core"
 )
 
 // kind is what the bytes actually are, which can differ from what the caller

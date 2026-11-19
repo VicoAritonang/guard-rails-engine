@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"os"
 
-	"go.vicoworks.com/guard-rails-engine/pkg/guardrails"
+	"go.vicoworks.com/guard-rails/pkg/guardrails"
 )
 
 // These examples render on pkg.go.dev. They have no Output comments, so go

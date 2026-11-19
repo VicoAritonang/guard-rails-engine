@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"time"
 
-	"go.vicoworks.com/guard-rails-engine/internal/core"
+	"go.vicoworks.com/guard-rails/internal/core"
 )
 
 // Request is a provider-neutral completion request.

@@ -55,7 +55,7 @@ request, and so does adding a rule that only fits the corpus.
 - Generated files are regenerated, not edited by hand: `make matrix` for
   `docs/tool-matrix.md`, `make dashboard` for the Grafana dashboard.
 
-Contributions are accepted under the [MIT License](LICENSE), and this project
+Contributions are accepted under the [Apache License 2.0](LICENSE), and this project
 follows a [code of conduct](CODE_OF_CONDUCT.md).
 
 ## Where things are

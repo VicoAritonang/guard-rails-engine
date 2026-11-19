@@ -10,7 +10,7 @@ import (
 
 	"github.com/ledongthuc/pdf"
 
-	"go.vicoworks.com/guard-rails-engine/internal/core"
+	"go.vicoworks.com/guard-rails/internal/core"
 )
 
 // PDF names an attacker can use to make a document do something when opened.

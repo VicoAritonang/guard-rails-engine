@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"go.vicoworks.com/guard-rails-engine/pkg/guardrails"
+	"go.vicoworks.com/guard-rails/pkg/guardrails"
 )
 
 const refundCatalog = `version: "1"

@@ -13,7 +13,7 @@ import (
 	"strconv"
 	"strings"
 
-	"go.vicoworks.com/guard-rails-engine/internal/core"
+	"go.vicoworks.com/guard-rails/internal/core"
 )
 
 func (r *reader) document(ctx context.Context, k kind) {

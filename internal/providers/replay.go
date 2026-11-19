@@ -11,7 +11,7 @@ import (
 	"strings"
 	"sync"
 
-	"go.vicoworks.com/guard-rails-engine/internal/core"
+	"go.vicoworks.com/guard-rails/internal/core"
 )
 
 // Replay serves recorded responses from a JSONL cassette.

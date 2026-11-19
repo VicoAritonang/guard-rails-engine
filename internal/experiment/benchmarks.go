@@ -13,8 +13,8 @@ import (
 	"sync"
 	"time"
 
-	"go.vicoworks.com/guard-rails-engine/internal/core"
-	"go.vicoworks.com/guard-rails-engine/internal/judge"
+	"go.vicoworks.com/guard-rails/internal/core"
+	"go.vicoworks.com/guard-rails/internal/judge"
 )
 
 // BenchmarksOptions configures the public-benchmark run.

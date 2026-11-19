@@ -24,10 +24,10 @@ import (
 	"sync"
 	"time"
 
-	"go.vicoworks.com/guard-rails-engine/internal/core"
-	"go.vicoworks.com/guard-rails-engine/internal/prices"
-	"go.vicoworks.com/guard-rails-engine/internal/providers"
-	"go.vicoworks.com/guard-rails-engine/internal/tokenize"
+	"go.vicoworks.com/guard-rails/internal/core"
+	"go.vicoworks.com/guard-rails/internal/prices"
+	"go.vicoworks.com/guard-rails/internal/providers"
+	"go.vicoworks.com/guard-rails/internal/tokenize"
 )
 
 // Verdict is one classifier's opinion of one text.

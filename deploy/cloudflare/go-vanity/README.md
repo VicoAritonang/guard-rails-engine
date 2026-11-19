@@ -1,18 +1,24 @@
 # go.vicoworks.com: the Go import path
 
-The Go module is named `go.vicoworks.com/guard-rails-engine`, while its code,
+The Go module is named `go.vicoworks.com/guard-rails`, while its code,
 issues, CI and releases live at
 `github.com/VicoAritonang/guard-rails-engine`. This Worker is what connects
 the two. When `go get` sees an import path it does not know, it fetches the
 path with `?go-get=1` and reads the `go-import` meta tag in the answer:
 
 ```text
-$ curl -s 'https://go.vicoworks.com/guard-rails-engine/pkg/guardrails?go-get=1' | grep go-
-<meta name="go-import" content="go.vicoworks.com/guard-rails-engine git https://github.com/VicoAritonang/guard-rails-engine">
-<meta name="go-source" content="go.vicoworks.com/guard-rails-engine https://github.com/... {/dir} ...">
+$ curl -s 'https://go.vicoworks.com/guard-rails/pkg/guardrails?go-get=1' | grep go-
+<meta name="go-import" content="go.vicoworks.com/guard-rails git https://github.com/VicoAritonang/guard-rails-engine">
+<meta name="go-source" content="go.vicoworks.com/guard-rails https://github.com/... {/dir} ...">
 ```
 
-Browsers are redirected to the package's page on pkg.go.dev. The domain can
+Browsers are redirected to the package's page on pkg.go.dev.
+
+The live `go.vicoworks.com` is currently served by a separate vanity application
+that hosts several modules; this Worker is a self-contained equivalent you can
+deploy instead. Whichever serves the domain, the `go-import` root it announces
+must be exactly the `module` line of `go.mod`, or `go get` fails with
+"module declares its path as ...". The domain can
 move to another host later without breaking a single import, which is the
 point of a vanity path.
 
@@ -39,9 +45,9 @@ To deploy from the dashboard instead: Workers & Pages → Create → Worker → 
 ## Check it
 
 ```bash
-curl -s 'https://go.vicoworks.com/guard-rails-engine?go-get=1' | grep go-import
-GOPROXY=direct go list -m go.vicoworks.com/guard-rails-engine@latest   # straight from GitHub via the Worker
-go list -m go.vicoworks.com/guard-rails-engine@latest                  # through proxy.golang.org
+curl -s 'https://go.vicoworks.com/guard-rails?go-get=1' | grep go-import
+GOPROXY=direct go list -m go.vicoworks.com/guard-rails@latest   # straight from GitHub via the Worker
+go list -m go.vicoworks.com/guard-rails@latest                  # through proxy.golang.org
 ```
 
 `go list -m ...@latest` only works after the repository has at least one
@@ -54,7 +60,7 @@ Every Go project of yours can live under the same domain. Add one line to
 
 ```js
 const MODULES = {
-  "guard-rails-engine": { repo: "https://github.com/VicoAritonang/guard-rails-engine", branch: "main" },
+  "guard-rails":        { repo: "https://github.com/VicoAritonang/guard-rails-engine", branch: "main" },
   "another-project":    { repo: "https://github.com/VicoAritonang/another-project",    branch: "main" },
 };
 ```

@@ -8,8 +8,8 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"go.vicoworks.com/guard-rails-engine/config"
-	"go.vicoworks.com/guard-rails-engine/internal/guards"
+	"go.vicoworks.com/guard-rails/config"
+	"go.vicoworks.com/guard-rails/internal/guards"
 )
 
 func runPolicy(args []string) error {

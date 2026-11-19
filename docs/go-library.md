@@ -1,20 +1,20 @@
 # Using the engine as a Go library
 
 ```bash
-go get go.vicoworks.com/guard-rails-engine@latest
+go get go.vicoworks.com/guard-rails@latest
 ```
 
 Two packages are public, and you need one of them:
 
 | Package | Use it when | Network |
 |---|---|---|
-| `go.vicoworks.com/guard-rails-engine/pkg/guardrails` | your program should run the guards itself, in process | none |
-| `go.vicoworks.com/guard-rails-engine/pkg/sdk` | a gateway container already runs, and your service calls it | HTTP to the gateway |
+| `go.vicoworks.com/guard-rails/pkg/guardrails` | your program should run the guards itself, in process | none |
+| `go.vicoworks.com/guard-rails/pkg/sdk` | a gateway container already runs, and your service calls it | HTTP to the gateway |
 
 Both return the same decisions, because they run the same pipelines. The
 library needs Go 1.26 or newer and adds no cgo. Everything under `internal/`
 is an implementation detail; the types you need are re-exported from
-`pkg/guardrails`. API reference: https://pkg.go.dev/go.vicoworks.com/guard-rails-engine/pkg/guardrails
+`pkg/guardrails`. API reference: https://pkg.go.dev/go.vicoworks.com/guard-rails/pkg/guardrails
 
 Versions are git tags (`v0.1.0`, `v0.2.0`, ...). Pin one in `go.mod`; before
 v1.0 a minor version may contain breaking changes, and the CHANGELOG lists
@@ -46,8 +46,8 @@ program that masks one email (windows/amd64, `-trimpath -ldflags='-s -w'`):
 
 ```go
 import (
-	"go.vicoworks.com/guard-rails-engine/pkg/guardrails/engine"
-	"go.vicoworks.com/guard-rails-engine/pkg/guardrails/textguard"
+	"go.vicoworks.com/guard-rails/pkg/guardrails/engine"
+	"go.vicoworks.com/guard-rails/pkg/guardrails/textguard"
 )
 
 g, err := engine.New(engine.Options{}, textguard.Module())
@@ -92,7 +92,7 @@ and the media backends of section 2 are the argument of
 ## 1. Guard a model call
 
 ```go
-import "go.vicoworks.com/guard-rails-engine/pkg/guardrails"
+import "go.vicoworks.com/guard-rails/pkg/guardrails"
 
 g, err := guardrails.New(guardrails.Options{}) // balanced policy
 if err != nil {
@@ -313,7 +313,7 @@ Prompt Guard, ...) and the OpenAI-compatible proxy live in the gateway. To
 use them from Go, run the container and call it with `pkg/sdk`:
 
 ```go
-import "go.vicoworks.com/guard-rails-engine/pkg/sdk"
+import "go.vicoworks.com/guard-rails/pkg/sdk"
 
 c, _ := sdk.New("http://guardrails:8080", sdk.WithAPIKey(os.Getenv("GUARDRAILS_API_KEY")))
 in, err := c.Inbound(ctx, sdk.Request{Messages: []sdk.Message{{Role: "user", Content: prompt}}})

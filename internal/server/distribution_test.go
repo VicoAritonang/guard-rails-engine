@@ -9,9 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	"go.vicoworks.com/guard-rails-engine/config"
-	"go.vicoworks.com/guard-rails-engine/internal/guards"
-	"go.vicoworks.com/guard-rails-engine/internal/telemetry"
+	"go.vicoworks.com/guard-rails/config"
+	"go.vicoworks.com/guard-rails/internal/guards"
+	"go.vicoworks.com/guard-rails/internal/telemetry"
 )
 
 // TestChatSpeaksOpenAI sends what an OpenAI SDK sends: sampling parameters, a

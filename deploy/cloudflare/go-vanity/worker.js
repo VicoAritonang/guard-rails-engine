@@ -6,8 +6,8 @@
 //   go-import  <module root> git <repository URL>   where to clone from
 //   go-source  <module root> <home> <dir> <file>     where pkg.go.dev links source
 //
-// So `go get go.vicoworks.com/guard-rails-engine/pkg/guardrails` lands here,
-// learns the module root is go.vicoworks.com/guard-rails-engine and the code
+// So `go get go.vicoworks.com/guard-rails/pkg/guardrails` lands here,
+// learns the module root is go.vicoworks.com/guard-rails and the code
 // lives on GitHub, and clones it from there. The code, CI and releases never
 // move; only the name does. Requests from a browser are redirected to the
 // package's documentation on pkg.go.dev.
@@ -18,7 +18,7 @@ const HOST = "go.vicoworks.com";
 
 const MODULES = {
   // module path segment after the host -> repository and default branch
-  "guard-rails-engine": {
+  "guard-rails": {
     repo: "https://github.com/VicoAritonang/guard-rails-engine",
     branch: "main",
   },

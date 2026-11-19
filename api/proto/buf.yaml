@@ -1,0 +1,13 @@
+# The protobuf module. `make api` lints, checks for breaking changes against
+# main and regenerates the Go code; CI runs the same three steps.
+version: v2
+modules:
+  - path: .
+lint:
+  use:
+    - STANDARD
+breaking:
+  use:
+    # WIRE_JSON rather than FILE: renaming a field breaks REST-shaped JSON
+    # clients even though it would not break the binary wire format.
+    - WIRE_JSON

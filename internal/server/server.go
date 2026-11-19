@@ -27,16 +27,17 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
+	"google.golang.org/grpc/health"
 
-	"go.vicoworks.com/guard-rails-engine/config"
-	"go.vicoworks.com/guard-rails-engine/internal/agent"
-	"go.vicoworks.com/guard-rails-engine/internal/cache"
-	"go.vicoworks.com/guard-rails-engine/internal/guards"
-	"go.vicoworks.com/guard-rails-engine/internal/judge"
-	"go.vicoworks.com/guard-rails-engine/internal/mcp"
-	"go.vicoworks.com/guard-rails-engine/internal/prices"
-	"go.vicoworks.com/guard-rails-engine/internal/providers"
-	"go.vicoworks.com/guard-rails-engine/internal/telemetry"
+	"go.vicoworks.com/guard-rails/config"
+	"go.vicoworks.com/guard-rails/internal/agent"
+	"go.vicoworks.com/guard-rails/internal/cache"
+	"go.vicoworks.com/guard-rails/internal/guards"
+	"go.vicoworks.com/guard-rails/internal/judge"
+	"go.vicoworks.com/guard-rails/internal/mcp"
+	"go.vicoworks.com/guard-rails/internal/prices"
+	"go.vicoworks.com/guard-rails/internal/providers"
+	"go.vicoworks.com/guard-rails/internal/telemetry"
 )
 
 // Options configures the HTTP surface.
@@ -117,6 +118,8 @@ type Server struct {
 	bus     *Bus
 
 	ready atomicBool
+	// health is the gRPC health service, set once GRPC builds the server.
+	health *health.Server
 }
 
 // New builds the server and its routes.
@@ -275,7 +278,10 @@ func (s *Server) Handler() http.Handler {
 
 // SetReady flips the readiness probe, so a rolling deploy can drain a replica
 // before it stops accepting connections.
-func (s *Server) SetReady(v bool) { s.ready.Store(v) }
+func (s *Server) SetReady(v bool) {
+	s.ready.Store(v)
+	s.syncHealth()
+}
 
 func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
@@ -306,31 +312,38 @@ func (s *Server) handlePolicy(w http.ResponseWriter, _ *http.Request) {
 	_, _ = w.Write(out)
 }
 
-func (s *Server) handleGuards(w http.ResponseWriter, _ *http.Request) {
-	type guardInfo struct {
-		Name      string  `json:"name"`
-		Stage     string  `json:"stage"`
-		Enabled   bool    `json:"enabled"`
-		FailMode  string  `json:"fail_mode"`
-		Timeout   string  `json:"timeout"`
-		Threshold float64 `json:"threshold,omitempty"`
-	}
-	var out []guardInfo
+type guardInfo struct {
+	Name      string  `json:"name"`
+	Stage     string  `json:"stage"`
+	Enabled   bool    `json:"enabled"`
+	FailMode  string  `json:"fail_mode"`
+	Timeout   string  `json:"timeout"`
+	Threshold float64 `json:"threshold,omitempty"`
+}
+
+type guardList struct {
+	Policy  string      `json:"policy"`
+	Version string      `json:"version"`
+	Guards  []guardInfo `json:"guards"`
+}
+
+func (s *Server) guardList() guardList {
+	out := guardList{Policy: s.opts.Policy.Name, Version: s.opts.Policy.Version}
 	for _, name := range config.KnownGuards() {
 		stage, _ := config.GuardStage(name)
 		g := s.opts.Policy.Guard(name)
-		out = append(out, guardInfo{
+		out.Guards = append(out.Guards, guardInfo{
 			Name: name, Stage: stage, Enabled: g.Enabled,
 			FailMode:  string(s.opts.Policy.EffectiveFailMode(name)),
 			Timeout:   s.opts.Policy.EffectiveTimeout(name).String(),
 			Threshold: g.Threshold,
 		})
 	}
-	writeJSON(w, http.StatusOK, map[string]any{
-		"policy":  s.opts.Policy.Name,
-		"version": s.opts.Policy.Version,
-		"guards":  out,
-	})
+	return out
+}
+
+func (s *Server) handleGuards(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, s.guardList())
 }
 
 // --- middleware ---------------------------------------------------------------
@@ -355,7 +368,7 @@ func (s *Server) withRequestID(next http.Handler) http.Handler {
 // response header so a caller holding a surprising response can jump straight
 // to its trace.
 func (s *Server) withTracing(next http.Handler) http.Handler {
-	tr := otel.Tracer("go.vicoworks.com/guard-rails-engine/server")
+	tr := otel.Tracer("go.vicoworks.com/guard-rails/server")
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/healthz", "/readyz", "/metrics":

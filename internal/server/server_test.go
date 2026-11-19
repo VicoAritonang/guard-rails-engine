@@ -12,19 +12,24 @@ import (
 	"strings"
 	"testing"
 
-	"go.vicoworks.com/guard-rails-engine/internal/cache"
-	"go.vicoworks.com/guard-rails-engine/internal/prices"
+	"go.vicoworks.com/guard-rails/internal/cache"
+	"go.vicoworks.com/guard-rails/internal/prices"
 
 	"github.com/prometheus/client_golang/prometheus"
 
-	"go.vicoworks.com/guard-rails-engine/config"
-	"go.vicoworks.com/guard-rails-engine/internal/core"
-	"go.vicoworks.com/guard-rails-engine/internal/guards"
-	"go.vicoworks.com/guard-rails-engine/internal/providers"
-	"go.vicoworks.com/guard-rails-engine/internal/telemetry"
+	"go.vicoworks.com/guard-rails/config"
+	"go.vicoworks.com/guard-rails/internal/core"
+	"go.vicoworks.com/guard-rails/internal/guards"
+	"go.vicoworks.com/guard-rails/internal/providers"
+	"go.vicoworks.com/guard-rails/internal/telemetry"
 )
 
 func testServer(t *testing.T, apiKeys []string) http.Handler {
+	t.Helper()
+	return newTestServer(t, apiKeys).Handler()
+}
+
+func newTestServer(t *testing.T, apiKeys []string) *Server {
 	t.Helper()
 	pol := config.DefaultPolicy()
 	if err := pol.Validate(); err != nil {
@@ -64,7 +69,7 @@ func testServer(t *testing.T, apiKeys []string) http.Handler {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return srv.Handler()
+	return srv
 }
 
 func post(t *testing.T, h http.Handler, path, body string, headers map[string]string) *httptest.ResponseRecorder {

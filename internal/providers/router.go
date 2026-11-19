@@ -16,7 +16,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"gopkg.in/yaml.v3"
 
-	"go.vicoworks.com/guard-rails-engine/internal/core"
+	"go.vicoworks.com/guard-rails/internal/core"
 )
 
 // Route is one entry in the model catalog: a stable alias the client asks for,
@@ -179,7 +179,7 @@ func NewRouter(opts RouterOptions) (*Router, error) {
 		}
 	}
 	opts.Breaker = opts.Breaker.withDefaults()
-	return &Router{opts: opts, tracer: otel.Tracer("go.vicoworks.com/guard-rails-engine/providers")}, nil
+	return &Router{opts: opts, tracer: otel.Tracer("go.vicoworks.com/guard-rails/providers")}, nil
 }
 
 func (r *Router) Name() string { return "router" }

@@ -19,13 +19,13 @@ import (
 	"strings"
 	"time"
 
-	"go.vicoworks.com/guard-rails-engine/config"
-	"go.vicoworks.com/guard-rails-engine/internal/agent"
-	"go.vicoworks.com/guard-rails-engine/internal/core"
-	"go.vicoworks.com/guard-rails-engine/internal/guards/registry"
-	"go.vicoworks.com/guard-rails-engine/internal/guards/runtime"
-	"go.vicoworks.com/guard-rails-engine/pkg/guardrails/engine"
-	"go.vicoworks.com/guard-rails-engine/pkg/guardrails/internal/link"
+	"go.vicoworks.com/guard-rails/config"
+	"go.vicoworks.com/guard-rails/internal/agent"
+	"go.vicoworks.com/guard-rails/internal/core"
+	"go.vicoworks.com/guard-rails/internal/guards/registry"
+	"go.vicoworks.com/guard-rails/internal/guards/runtime"
+	"go.vicoworks.com/guard-rails/pkg/guardrails/engine"
+	"go.vicoworks.com/guard-rails/pkg/guardrails/internal/link"
 )
 
 // Guard names, for Module.

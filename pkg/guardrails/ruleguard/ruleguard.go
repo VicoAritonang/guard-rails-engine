@@ -9,10 +9,10 @@
 package ruleguard
 
 import (
-	"go.vicoworks.com/guard-rails-engine/config"
-	"go.vicoworks.com/guard-rails-engine/internal/guards/registry"
-	"go.vicoworks.com/guard-rails-engine/internal/guards/rules"
-	"go.vicoworks.com/guard-rails-engine/pkg/guardrails/engine"
+	"go.vicoworks.com/guard-rails/config"
+	"go.vicoworks.com/guard-rails/internal/guards/registry"
+	"go.vicoworks.com/guard-rails/internal/guards/rules"
+	"go.vicoworks.com/guard-rails/pkg/guardrails/engine"
 )
 
 // Guard names, for Module.

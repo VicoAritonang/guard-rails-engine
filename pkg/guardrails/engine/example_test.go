@@ -5,10 +5,10 @@ import (
 	"errors"
 	"fmt"
 
-	"go.vicoworks.com/guard-rails-engine/pkg/guardrails/engine"
-	"go.vicoworks.com/guard-rails-engine/pkg/guardrails/mediaguard"
-	"go.vicoworks.com/guard-rails-engine/pkg/guardrails/textguard"
-	"go.vicoworks.com/guard-rails-engine/pkg/guardrails/toolguard"
+	"go.vicoworks.com/guard-rails/pkg/guardrails/engine"
+	"go.vicoworks.com/guard-rails/pkg/guardrails/mediaguard"
+	"go.vicoworks.com/guard-rails/pkg/guardrails/textguard"
+	"go.vicoworks.com/guard-rails/pkg/guardrails/toolguard"
 )
 
 // These examples render on pkg.go.dev. They have no Output comments, so go

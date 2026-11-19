@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	"go.vicoworks.com/guard-rails-engine/internal/core"
-	"go.vicoworks.com/guard-rails-engine/internal/providers"
+	"go.vicoworks.com/guard-rails/internal/core"
+	"go.vicoworks.com/guard-rails/internal/providers"
 )
 
 // RunRequest starts or resumes an agent run.

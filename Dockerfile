@@ -54,7 +54,7 @@ ARG VERSION=dev
 LABEL org.opencontainers.image.title="guard-rails-engine" \
       org.opencontainers.image.description="AI guardrails gateway: prompt, tool and output controls with an evaluation harness" \
       org.opencontainers.image.source="https://github.com/VicoAritonang/guard-rails-engine" \
-      org.opencontainers.image.licenses="MIT" \
+      org.opencontainers.image.licenses="Apache-2.0" \
       org.opencontainers.image.version="${VERSION}"
 
 COPY --from=build /out/server /usr/local/bin/server

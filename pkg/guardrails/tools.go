@@ -3,7 +3,7 @@ package guardrails
 import (
 	"context"
 
-	"go.vicoworks.com/guard-rails-engine/pkg/guardrails/toolguard"
+	"go.vicoworks.com/guard-rails/pkg/guardrails/toolguard"
 )
 
 // Tool execution types, from package toolguard.

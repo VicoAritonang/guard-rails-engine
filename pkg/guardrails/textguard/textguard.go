@@ -13,12 +13,12 @@
 package textguard
 
 import (
-	"go.vicoworks.com/guard-rails-engine/config"
-	"go.vicoworks.com/guard-rails-engine/internal/guards/inbound"
-	"go.vicoworks.com/guard-rails-engine/internal/guards/outbound"
-	"go.vicoworks.com/guard-rails-engine/internal/guards/registry"
-	"go.vicoworks.com/guard-rails-engine/internal/guards/toolresult"
-	"go.vicoworks.com/guard-rails-engine/pkg/guardrails/engine"
+	"go.vicoworks.com/guard-rails/config"
+	"go.vicoworks.com/guard-rails/internal/guards/inbound"
+	"go.vicoworks.com/guard-rails/internal/guards/outbound"
+	"go.vicoworks.com/guard-rails/internal/guards/registry"
+	"go.vicoworks.com/guard-rails/internal/guards/toolresult"
+	"go.vicoworks.com/guard-rails/pkg/guardrails/engine"
 )
 
 // Guard names, for Module.
